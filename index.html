@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nayax — Samoobslužná myčka Nymburk</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="data.js" onerror=""></script>
+<script src="analyza_data.js" onerror=""></script>
+<style>
+/* ===== RESET & SHARED ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #f0f2f5; color: #1a1a2e; line-height: 1.5; }
+
+/* ===== LANDING PAGE ===== */
+#landing { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 40px; }
+#landing h1 { font-size: 28px; font-weight: 700; color: #1e293b; margin-bottom: 6px; }
+#landing .land-sub { font-size: 15px; color: #64748b; margin-bottom: 40px; }
+.tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 700px; width: 100%; }
+.tile { background: #fff; border-radius: 16px; padding: 36px 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); cursor: pointer; transition: all 0.2s; border: 2px solid transparent; text-align: center; }
+.tile:hover { border-color: #4361ee; box-shadow: 0 4px 16px rgba(67,97,238,0.15); transform: translateY(-2px); }
+.tile .tile-icon { font-size: 48px; margin-bottom: 16px; }
+.tile h2 { font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
+.tile p { font-size: 14px; color: #64748b; line-height: 1.5; }
+.tile .tile-status { margin-top: 12px; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 12px; display: inline-block; }
+.tile .tile-status.ready { background: #d1fae5; color: #065f46; }
+.tile .tile-status.empty { background: #fef3c7; color: #92400e; }
+@media (max-width: 600px) { .tiles { grid-template-columns: 1fr; } }
+
+/* ===== BACK BUTTON ===== */
+.back-btn { background: #4361ee; color: #fff; border: none; border-radius: 8px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s; white-space: nowrap; flex-shrink: 0; }
+.back-btn:hover { background: #3451d1; }
+
+/* ===== SECTION VISIBILITY ===== */
+#dashSection, #anaSection { display: none; }
+
+/* ============================== */
+/* ===== DASHBOARD STYLES ======= */
+/* ============================== */
+#dashSection .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; padding: 24px 32px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+#dashSection .header .header-left { flex: 1; }
+#dashSection .header-left { display: flex; align-items: center; gap: 16px; }
+#dashSection .header-logo { height: 48px; border-radius: 8px; }
+#dashSection .header h1 { font-size: 24px; font-weight: 600; }
+#dashSection .header .subtitle { font-size: 14px; opacity: 0.7; margin-top: 4px; }
+#dashSection .upload-zone { border: 2px dashed rgba(255,255,255,0.3); border-radius: 12px; padding: 16px 24px; text-align: center; cursor: pointer; transition: all 0.2s; min-width: 280px; }
+#dashSection .upload-zone:hover, #dashSection .upload-zone.dragover { border-color: #4361ee; background: rgba(67,97,238,0.1); }
+#dashSection .upload-zone input { display: none; }
+#dashSection .upload-zone .upload-label { font-size: 14px; color: rgba(255,255,255,0.8); }
+#dashSection .upload-zone .upload-icon { font-size: 20px; margin-bottom: 4px; }
+#dashSection .upload-zone.loaded { border-color: #4ade80; background: rgba(74,222,128,0.1); }
+#dashSection .upload-zone.loaded .upload-label { color: #4ade80; }
+#dashSection #dashContent { display: none; }
+#dashSection #dashWelcome { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center; padding: 32px; }
+#dashSection #dashWelcome h2 { font-size: 28px; color: #1a1a2e; margin-bottom: 12px; }
+#dashSection #dashWelcome p { color: #666; max-width: 500px; line-height: 1.6; }
+#dashSection #dashWelcome .welcome-upload { margin-top: 24px; border: 2px dashed #ccc; border-radius: 16px; padding: 40px 60px; cursor: pointer; transition: all 0.2s; }
+#dashSection #dashWelcome .welcome-upload:hover, #dashSection #dashWelcome .welcome-upload.dragover { border-color: #4361ee; background: rgba(67,97,238,0.05); }
+#dashSection #dashWelcome .welcome-upload input { display: none; }
+#dashSection .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; padding: 24px 32px; }
+#dashSection .kpi { background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+#dashSection .kpi .label { font-size: 13px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+#dashSection .kpi .value { font-size: 28px; font-weight: 700; margin-top: 4px; color: #1a1a2e; }
+#dashSection .kpi .detail { font-size: 12px; color: #999; margin-top: 4px; }
+#dashSection .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 32px 24px; }
+#dashSection .chart-card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+#dashSection .chart-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #1a1a2e; }
+#dashSection .chart-card.full { grid-column: 1 / -1; }
+#dashSection .table-card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin: 0 32px 24px; }
+#dashSection .table-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 16px; }
+#dashSection table { width: 100%; border-collapse: collapse; font-size: 14px; }
+#dashSection th { text-align: left; padding: 10px 12px; border-bottom: 2px solid #e0e0e0; color: #666; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+#dashSection td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+#dashSection tr:hover td { background: #f8f9fa; }
+.text-right { text-align: right; }
+#dashSection .bar-cell { display: flex; align-items: center; gap: 8px; }
+#dashSection .bar-bg { height: 8px; border-radius: 4px; background: #e8eaf0; flex: 1; max-width: 120px; }
+#dashSection .bar-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #4361ee, #3a86ff); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+.badge-blue { background: #e8f0fe; color: #1967d2; }
+.badge-firma { background: #e8f0fe; color: #1967d2; }
+.badge-garaz { background: #fef3e2; color: #b45309; }
+.badge-unknown { background: #f0f0f0; color: #999; }
+#dashSection .filter-bar { display: flex; align-items: center; gap: 8px; padding: 16px 32px 0; }
+#dashSection .filter-bar .filter-label { font-size: 13px; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; }
+#dashSection .filter-btn { padding: 6px 18px; border-radius: 20px; border: 2px solid #e0e0e0; background: #fff; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; color: #666; }
+#dashSection .filter-btn:hover { border-color: #4361ee; color: #4361ee; }
+#dashSection .filter-btn.active { background: #4361ee; color: #fff; border-color: #4361ee; }
+#dashSection .filter-btn.active-firma { background: #1967d2; color: #fff; border-color: #1967d2; }
+#dashSection .filter-btn.active-garaz { background: #b45309; color: #fff; border-color: #b45309; }
+@media (max-width: 768px) {
+  #dashSection .charts { grid-template-columns: 1fr; }
+  #dashSection .kpi-row { grid-template-columns: 1fr 1fr; }
+  #dashSection .header, #dashSection .kpi-row, #dashSection .charts, #dashSection .table-card { padding-left: 16px; padding-right: 16px; }
+}
+
+/* ============================== */
+/* ===== ANALYZA STYLES ========= */
+/* ============================== */
+#anaSection { background: #f4f6fb; }
+#anaSection .header { background: linear-gradient(135deg, #1e293b 0%, #334155 100%); color: #fff; padding: 28px 40px; }
+#anaSection .header-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+#anaSection .header h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+#anaSection .header .subtitle { font-size: 13px; opacity: 0.6; margin-top: 2px; }
+#anaSection .header .date-range { font-size: 14px; opacity: 0.8; margin-top: 2px; }
+#anaSection .upload-zone { border: 2px dashed rgba(255,255,255,0.25); border-radius: 12px; padding: 14px 28px; text-align: center; cursor: pointer; transition: all 0.2s; position: relative; }
+#anaSection .upload-zone:hover, #anaSection .upload-zone.dragover { border-color: #4361ee; background: rgba(67,97,238,0.1); }
+#anaSection .upload-zone input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 2; }
+#anaSection .upload-zone .label { font-size: 13px; color: rgba(255,255,255,0.7); pointer-events: none; }
+#anaSection .upload-zone.loaded { border-color: #10b981; background: rgba(16,185,129,0.1); }
+#anaSection .upload-zone.loaded .label { color: #6ee7b7; }
+#anaSection #anaWelcome { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 65vh; text-align: center; padding: 40px; }
+#anaSection #anaWelcome h2 { font-size: 26px; color: #1e293b; margin-bottom: 8px; }
+#anaSection #anaWelcome p { color: #64748b; max-width: 480px; }
+#anaSection #anaWelcome .drop { margin-top: 28px; border: 2px dashed #cbd5e1; border-radius: 16px; padding: 48px 64px; cursor: pointer; transition: all 0.2s; position: relative; }
+#anaSection #anaWelcome .drop:hover, #anaSection #anaWelcome .drop.dragover { border-color: #4361ee; background: rgba(67,97,238,0.04); }
+#anaSection #anaWelcome .drop input[type="file"] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 2; }
+#anaSection #anaWelcome .drop .drop-content { pointer-events: none; }
+#anaSection #anaReport { display: none; max-width: 1280px; margin: 0 auto; padding: 24px 32px 48px; }
+#anaSection .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 14px; margin-bottom: 24px; }
+#anaSection .kpi { background: #fff; border-radius: 12px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04); border-left: 4px solid #4361ee; }
+#anaSection .kpi.green { border-left-color: #10b981; }
+#anaSection .kpi.orange { border-left-color: #f59e0b; }
+#anaSection .kpi.purple { border-left-color: #7c3aed; }
+#anaSection .kpi .lbl { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600; }
+#anaSection .kpi .val { font-size: 26px; font-weight: 800; margin-top: 2px; }
+#anaSection .kpi .sub { font-size: 12px; color: #64748b; margin-top: 2px; }
+#anaSection .section { margin-bottom: 24px; }
+#anaSection .section-title { font-size: 17px; font-weight: 700; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #e2e8f0; display: flex; align-items: center; gap: 8px; }
+#anaSection .grid { display: grid; gap: 16px; }
+#anaSection .grid-2 { grid-template-columns: 1fr 1fr; }
+#anaSection .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+#anaSection .card { background: #fff; border-radius: 12px; padding: 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04); }
+#anaSection .card h3 { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 14px; }
+#anaSection .card.full { grid-column: 1 / -1; }
+#anaSection .heatmap { width: 100%; border-collapse: separate; border-spacing: 3px; }
+#anaSection .heatmap th { font-size: 11px; color: #64748b; font-weight: 600; padding: 4px 6px; text-align: center; }
+#anaSection .heatmap td { text-align: center; font-size: 12px; font-weight: 600; border-radius: 6px; padding: 8px 4px; min-width: 44px; }
+#anaSection .heatmap .row-label { text-align: right; font-weight: 700; color: #1e293b; padding-right: 10px; min-width: 30px; }
+#anaSection .info-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 18px 22px; margin-bottom: 24px; font-size: 13px; color: #1e40af; line-height: 1.6; }
+#anaSection .info-title { font-weight: 700; font-size: 14px; margin-bottom: 6px; }
+#anaSection .info-example { background: #fff; border: 1px solid #dbeafe; border-radius: 8px; padding: 12px 16px; margin-top: 10px; font-size: 12px; color: #1e3a5f; }
+#anaSection .data { width: 100%; border-collapse: collapse; font-size: 13px; }
+#anaSection .data th { text-align: left; padding: 8px 10px; border-bottom: 2px solid #e2e8f0; font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
+#anaSection .data td { padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
+#anaSection .data .bold { font-weight: 700; }
+#anaSection .rec-list { list-style: none; }
+#anaSection .rec-list li { background: #fff; border-radius: 12px; padding: 18px 22px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); border-left: 4px solid #e2e8f0; }
+#anaSection .rec-list li.high { border-left-color: #ef4444; }
+#anaSection .rec-list li.medium { border-left-color: #f59e0b; }
+#anaSection .rec-title { font-weight: 700; font-size: 15px; margin-bottom: 6px; }
+#anaSection .rec-body { font-size: 13px; color: #475569; line-height: 1.6; }
+#anaSection .rec-impact { display: inline-block; margin-top: 8px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 10px; }
+#anaSection .impact-high { background: #fef2f2; color: #dc2626; }
+#anaSection .impact-medium { background: #fffbeb; color: #d97706; }
+#anaSection .print-btn { background: #4361ee; color: #fff; border: none; border-radius: 8px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }
+#anaSection .print-btn:hover { background: #3451d1; }
+@media (max-width: 900px) {
+  #anaSection .grid-2, #anaSection .grid-3 { grid-template-columns: 1fr; }
+  #anaSection .header { padding: 20px; }
+}
+@media print {
+  .back-btn { display: none !important; }
+  #landing { display: none !important; }
+  #anaSection .header { break-after: avoid; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== LANDING PAGE ===== -->
+<div id="landing">
+  <h1>Samoobslužná myčka Nymburk</h1>
+  <div class="land-sub">Nayax — přehledy a analýzy</div>
+  <div class="tiles">
+    <div class="tile" onclick="showSection('dash')">
+      <div class="tile-icon">&#128179;</div>
+      <h2>Věrnostní karty</h2>
+      <p>Přehled transakcí věrnostních karet — obrat, zákazníci, trendy, firma vs. garáž.</p>
+      <div class="tile-status" id="dashStatus"></div>
+    </div>
+    <div class="tile" onclick="showSection('ana')">
+      <div class="tile-icon">&#128202;</div>
+      <h2>Analýza transakcí</h2>
+      <p>Kompletní analýza všech karetních transakcí — sessions, počasí, doporučení.</p>
+      <div class="tile-status" id="anaStatus"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== BACK BUTTON ===== -->
+
+<!-- ===== DASHBOARD SECTION ===== -->
+<div id="dashSection">
+  <div class="header">
+    <button class="back-btn" onclick="showLanding()">&larr; Zpět</button>
+    <div class="header-left">
+      <img src="logo.png" alt="Vytopna" class="header-logo">
+      <div>
+        <h1>Věrnostní karty — přehled</h1>
+        <div class="subtitle" id="dashSubtitle">Nahrajte XLSX export pro zobrazeni dat</div>
+      </div>
+    </div>
+    <div class="upload-zone" id="dashHeaderUpload">
+      <input type="file" accept=".xlsx,.xls" id="dashHeaderFileInput">
+      <div class="upload-icon">&#128196;</div>
+      <div class="upload-label">Pretahnete XLSX sem nebo kliknete</div>
+    </div>
+  </div>
+
+  <div id="dashWelcome">
+    <h2>Věrnostní karty — přehled</h2>
+    <p>Nahrajte export z Nayax systému (CardsSalesDetails XLSX) a přehled se automaticky vygeneruje.</p>
+    <div class="welcome-upload" id="dashWelcomeUpload">
+      <input type="file" accept=".xlsx,.xls" id="dashWelcomeFileInput">
+      <div style="font-size:48px;margin-bottom:12px">&#128202;</div>
+      <div style="font-size:16px;color:#1a1a2e;font-weight:600">Pretahnete XLSX soubor sem</div>
+      <div style="font-size:14px;color:#999;margin-top:8px">nebo kliknete pro vyber souboru</div>
+    </div>
+  </div>
+
+  <div id="dashContent">
+    <div class="filter-bar" id="filterBar" style="display:none">
+      <span class="filter-label">Filtr:</span>
+      <button class="filter-btn active" data-filter="all">Vse</button>
+      <button class="filter-btn" data-filter="firma">Firma</button>
+      <button class="filter-btn" data-filter="garaz">Garaz</button>
+    </div>
+    <div class="kpi-row">
+      <div class="kpi"><div class="label">Celkovy obrat</div><div class="value" id="kpi-total">-</div><div class="detail" id="kpi-total-detail"></div></div>
+      <div class="kpi"><div class="label">Pocet transakci</div><div class="value" id="kpi-tx">-</div><div class="detail" id="kpi-tx-detail"></div></div>
+      <div class="kpi"><div class="label">Prumerna transakce</div><div class="value" id="kpi-avg">-</div><div class="detail" id="kpi-avg-detail"></div></div>
+      <div class="kpi"><div class="label">Aktivnich zakazniku</div><div class="value" id="kpi-customers">-</div><div class="detail" id="kpi-cust-detail"></div></div>
+      <div class="kpi"><div class="label">Firma</div><div class="value" id="kpi-firma">-</div><div class="detail" id="kpi-firma-detail"></div></div>
+      <div class="kpi"><div class="label">Garaz</div><div class="value" id="kpi-garaz">-</div><div class="detail" id="kpi-garaz-detail"></div></div>
+    </div>
+    <div class="charts">
+      <div class="chart-card"><h3>Obrat podle mesice</h3><canvas id="chartMonthly"></canvas></div>
+      <div class="chart-card"><h3>Obrat podle automatu</h3><div style="max-width:320px;margin:0 auto"><canvas id="chartMachines"></canvas></div></div>
+      <div class="chart-card full"><h3>Denni obrat</h3><canvas id="chartDaily" height="80"></canvas></div>
+    </div>
+    <div class="table-card">
+      <h3>Prehled zakazniku</h3>
+      <table><thead><tr><th>Zakaznik</th><th>Typ</th><th class="text-right">Transakce</th><th class="text-right">Celkem (CZK)</th><th>Podil</th><th class="text-right">Prumer / tx</th></tr></thead><tbody id="customerTable"></tbody></table>
+    </div>
+    <div class="table-card">
+      <h3>Poslednich 20 transakci</h3>
+      <table><thead><tr><th>Datum</th><th>Zakaznik</th><th>Typ</th><th>Automat</th><th class="text-right">Castka (CZK)</th></tr></thead><tbody id="recentTable"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== ANALYZA SECTION ===== -->
+<div id="anaSection">
+  <div class="header">
+    <div class="header-top">
+      <div style="display:flex;align-items:center;gap:16px;">
+        <button class="back-btn" onclick="showLanding()">&larr; Zpět</button>
+        <div>
+        <h1>Analýza transakcí — Samoobslužná myčka</h1>
+        <div class="date-range" id="anaDateRange">Nahrajte XLSX export pro analýzu</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="print-btn" id="anaPrintBtn" style="display:none" onclick="window.print()">Tisk / PDF</button>
+        <div class="upload-zone" id="anaHeaderUpload">
+          <input type="file" accept=".xlsx,.xls" id="anaHeaderFileInput">
+          <div class="label">Nahrát nový XLSX</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="anaWelcome">
+    <h2>Analýza transakcí myčky</h2>
+    <p>Nahrajte export <strong>DynamicTransactionsMonitor</strong> z Nayax systému a analýza se automaticky vygeneruje.</p>
+    <div class="drop" id="anaWelcomeDrop">
+      <input type="file" accept=".xlsx,.xls" id="anaWelcomeFileInput">
+      <div class="drop-content">
+        <div style="font-size:48px;margin-bottom:12px">&#128202;</div>
+        <div style="font-size:16px;font-weight:600">Přetáhněte XLSX soubor sem</div>
+        <div style="font-size:13px;color:#94a3b8;margin-top:8px">nebo klikněte pro výběr souboru</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="anaReport">
+    <div class="kpi-row" id="anaKpiRow"></div>
+    <div class="info-box" id="anaSessionInfoBox" style="display:none;"></div>
+    <div class="section"><div class="section-title">Týdenní trend tržeb</div><div class="card full"><canvas id="anaWeeklyChart" height="70"></canvas></div></div>
+    <div class="section">
+      <div class="section-title">Časové vzorce</div>
+      <div class="grid grid-2">
+        <div class="card"><h3>Tržby podle hodiny</h3><div id="anaHourDayFilter" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px"><button class="hour-day-btn active" data-day="all" style="padding:3px 10px;border:1px solid #ccc;border-radius:12px;background:#4361ee;color:#fff;cursor:pointer;font-size:11px">Všechny dny</button><button class="hour-day-btn" data-day="1" style="padding:3px 10px;border:1px solid #ccc;border-radius:12px;background:#f0f0f0;color:#333;cursor:pointer;font-size:11px">Po</button><button class="hour-day-btn" data-day="2" style="padding:3px 10px;border:1px solid #ccc;border-radius:12px;background:#f0f0f0;color:#333;cursor:pointer;font-size:11px">Út</button><button class="hour-day-btn" data-day="3" style="padding:3px 10px;border:1px solid #ccc;border-radius:12px;background:#f0f0f0;color:#333;cursor:pointer;font-size:11px">St</button><button class="hour-day-btn" data-day="4" style="padding:3px 10px;border:1px solid #ccc;border-radius:12px;background:#f0f0f0;color:#333;cursor:pointer;font-size:11px">Čt</button><button class="hour-day-btn" data-day="5" style="padding:3px 10px;border:1px solid #ccc;border-radius:12px;background:#f0f0f0;color:#333;cursor:pointer;font-size:11px">Pá</button><button class="hour-day-btn" data-day="6" style="padding:3px 10px;border:1px solid #ccc;border-radius:12px;background:#f0f0f0;color:#333;cursor:pointer;font-size:11px">So</button><button class="hour-day-btn" data-day="0" style="padding:3px 10px;border:1px solid #ccc;border-radius:12px;background:#f0f0f0;color:#333;cursor:pointer;font-size:11px">Ne</button></div><canvas id="anaHourChart" height="180"></canvas></div>
+        <div class="card"><h3>Tržby podle dne v týdnu</h3><canvas id="anaDayChart" height="180"></canvas></div>
+      </div>
+    </div>
+    <div class="section"><div class="section-title">Heatmapa — sessions podle dne a hodiny</div><div class="card full" id="anaHeatmapCard"></div></div>
+    <div class="section">
+      <div class="section-title">Vytížení a kapacita</div>
+      <div class="grid grid-3">
+        <div class="card"><h3>Boxy — tržby</h3><canvas id="anaBoxChart" height="200"></canvas></div>
+        <div class="card"><h3>Denní část dne</h3><canvas id="anaDaypartChart" height="200"></canvas></div>
+        <div class="card"><h3>Rozložení denních tržeb</h3><canvas id="anaDailyDistChart" height="200"></canvas></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Měsíční přehled</div>
+      <div class="grid grid-2">
+        <div class="card" id="anaMonthTableCard"></div>
+        <div class="card"><h3>Trend tržeb na aktivní den</h3><canvas id="anaMonthTrendChart" height="180"></canvas></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Nejlepší a nejhorší dny</div>
+      <div class="grid grid-2">
+        <div class="card" id="anaTopDaysCard"></div>
+        <div class="card" id="anaBottomDaysCard"></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Korelace s počasím</div>
+      <div class="grid grid-2">
+        <div class="card"><h3>Tržby vs. teplota</h3><canvas id="anaWeatherTempChart" height="180"></canvas></div>
+        <div class="card"><h3>Tržby vs. srážky dnes</h3><canvas id="anaWeatherPrecChart" height="180"></canvas></div>
+      </div>
+      <div class="grid grid-2" style="margin-top:16px">
+        <div class="card" id="anaWeatherComboCard"></div>
+        <div class="card" id="anaWeatherTopCard"></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Struktura plateb (multi-tap analýza)</div>
+      <div class="grid grid-2">
+        <div class="card" id="anaMultitapCard"></div>
+        <div class="card"><h3>Distribuce útraty za session</h3><canvas id="anaSpendDistChart" height="180"></canvas></div>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Doporučení pro zvýšení obratu</div>
+      <div class="card full" id="anaRecsCard"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== NAVIGATION =====
+function showSection(which) {
+  document.getElementById('landing').style.display = 'none';
+  if (which === 'dash') {
+    document.getElementById('dashSection').style.display = 'block';
+    document.getElementById('anaSection').style.display = 'none';
+  } else {
+    document.getElementById('anaSection').style.display = 'block';
+    document.getElementById('dashSection').style.display = 'none';
+  }
+  window.scrollTo(0, 0);
+}
+function showLanding() {
+  document.getElementById('landing').style.display = 'flex';
+  document.getElementById('dashSection').style.display = 'none';
+  document.getElementById('anaSection').style.display = 'none';
+  window.scrollTo(0, 0);
+  updateLandingStatus();
+}
+
+var _dashDataLoaded = false;
+var _anaDataLoaded = false;
+
+function updateLandingStatus() {
+  var ds = document.getElementById('dashStatus');
+  var as = document.getElementById('anaStatus');
+  if (_dashDataLoaded) { ds.textContent = 'Data načtena'; ds.className = 'tile-status ready'; }
+  else { ds.textContent = 'Vyžaduje XLSX'; ds.className = 'tile-status empty'; }
+  if (_anaDataLoaded) { as.textContent = 'Data načtena'; as.className = 'tile-status ready'; }
+  else { as.textContent = 'Vyžaduje XLSX'; as.className = 'tile-status empty'; }
+}
+
+// ===== DASHBOARD JS =====
+(function() {
+  function setupUploadZone(zoneEl, inputEl) {
+    zoneEl.addEventListener('click', function() { inputEl.click(); });
+    zoneEl.addEventListener('dragover', function(e) { e.preventDefault(); zoneEl.classList.add('dragover'); });
+    zoneEl.addEventListener('dragleave', function() { zoneEl.classList.remove('dragover'); });
+    zoneEl.addEventListener('drop', function(e) { e.preventDefault(); zoneEl.classList.remove('dragover'); var f = e.dataTransfer.files[0]; if (f) dashProcessFile(f); });
+    inputEl.addEventListener('change', function(e) { var f = e.target.files[0]; if (f) dashProcessFile(f); });
+  }
+  setupUploadZone(document.getElementById('dashHeaderUpload'), document.getElementById('dashHeaderFileInput'));
+  setupUploadZone(document.getElementById('dashWelcomeUpload'), document.getElementById('dashWelcomeFileInput'));
+
+  var chartMonthly = null, chartMachines = null, chartDaily = null;
+  function fmtCZK(n) { return n.toLocaleString('cs-CZ') + ' Kc'; }
+  function escapeHtml(str) { var div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
+
+  var CARD_TYPES = {};
+  for (var i = 1; i <= 66; i++) CARD_TYPES[String(i)] = 'garaz';
+  for (var i = 67; i <= 100; i++) CARD_TYPES[String(i)] = 'firma';
+  function getCardType(card) { return CARD_TYPES[card] || null; }
+  function typeBadge(type) {
+    if (type === 'firma') return '<span class="badge badge-firma">Firma</span>';
+    if (type === 'garaz') return '<span class="badge badge-garaz">Garaz</span>';
+    return '<span class="badge badge-unknown">\u2014</span>';
+  }
+
+  var _dashboardData = [];
+  var _activeFilter = 'all';
+
+  function setFilter(filter) {
+    _activeFilter = filter;
+    document.querySelectorAll('#filterBar .filter-btn').forEach(function(btn) {
+      btn.classList.remove('active', 'active-firma', 'active-garaz');
+      if (btn.dataset.filter === filter) {
+        if (filter === 'firma') btn.classList.add('active-firma');
+        else if (filter === 'garaz') btn.classList.add('active-garaz');
+        else btn.classList.add('active');
+      }
+    });
+    renderDashboard(_dashboardData, filter);
+  }
+  document.getElementById('filterBar').addEventListener('click', function(e) {
+    var btn = e.target.closest('.filter-btn');
+    if (btn) setFilter(btn.dataset.filter);
+  });
+
+  window.dashProcessFile = function(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var data = new Uint8Array(e.target.result);
+      var wb = XLSX.read(data, { type: 'array' });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var raw = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      var headerIdx = -1;
+      for (var i = 0; i < Math.min(raw.length, 5); i++) {
+        if (raw[i] && raw[i].some(function(cell) { return String(cell).includes('Transaction ID'); })) { headerIdx = i; break; }
+      }
+      if (headerIdx === -1) { alert('Neplatny format souboru.'); return; }
+      var headers = raw[headerIdx];
+      var colMap = {};
+      headers.forEach(function(h, i) { colMap[String(h).trim()] = i; });
+      var rows = [];
+      for (var i = headerIdx + 1; i < raw.length; i++) {
+        var r = raw[i];
+        if (!r || !r[colMap['Settlement Time']]) continue;
+        var amount = parseFloat(r[colMap['Amount']]) || 0;
+        if (amount === 0 && String(r[colMap['Holder Name']] || '').toLowerCase() === 'total') continue;
+        var cardVal = String(r[colMap['Display Card String']] || '').trim();
+        var cardNum = Number(cardVal);
+        if (isNaN(cardNum) || cardNum < 1 || cardNum > 1000) continue;
+        rows.push({ holder: String(r[colMap['Holder Name']] || '').trim(), machine: String(r[colMap['Machine Name']] || '').trim(), card: cardVal, amount: amount, date: String(r[colMap['Settlement Time']] || '').trim() });
+      }
+      if (rows.length === 0) { alert('Soubor neobsahuje zadne transakce.'); return; }
+      var dateRange = '';
+      var firstCell = String(raw[0] && raw[0][0] || '');
+      var rangeMatch = firstCell.match(/(\d{2}\.\d{2}\.\d{4}).*?-.*?(\d{2}\.\d{2}\.\d{4})/);
+      if (rangeMatch) dateRange = rangeMatch[1] + ' - ' + rangeMatch[2];
+      document.getElementById('dashSubtitle').textContent = (dateRange ? 'Obdobi: ' + dateRange + ' | ' : '') + 'Soubor: ' + file.name + ' | ' + rows.length + ' transakci';
+      document.getElementById('dashHeaderUpload').classList.add('loaded');
+      document.querySelector('#dashHeaderUpload .upload-label').textContent = file.name;
+      renderDashboard(rows);
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  window.dashLoadPreloaded = function(pd) {
+    document.getElementById('dashSubtitle').textContent = (pd.dateRange ? 'Obdobi: ' + pd.dateRange + ' | ' : '') + 'Soubor: ' + pd.fileName + ' | ' + pd.rows.length + ' transakci';
+    document.getElementById('dashHeaderUpload').classList.add('loaded');
+    document.querySelector('#dashHeaderUpload .upload-label').textContent = pd.fileName;
+    renderDashboard(pd.rows);
+  };
+
+  function renderDashboard(allData, filter) {
+    if (filter === undefined) { _dashboardData = allData; filter = _activeFilter; }
+    _dashDataLoaded = true;
+    document.getElementById('dashWelcome').style.display = 'none';
+    document.getElementById('dashContent').style.display = 'block';
+    document.getElementById('filterBar').style.display = 'flex';
+
+    var data = allData;
+    if (filter === 'firma') data = allData.filter(function(d) { return getCardType(d.card) === 'firma'; });
+    else if (filter === 'garaz') data = allData.filter(function(d) { return getCardType(d.card) === 'garaz'; });
+
+    if (chartMonthly) chartMonthly.destroy();
+    if (chartMachines) chartMachines.destroy();
+    if (chartDaily) chartDaily.destroy();
+
+    var knownData = data.filter(function(d) { return d.holder; });
+    var totalAmount = data.reduce(function(s, d) { return s + d.amount; }, 0);
+    var txCount = data.length;
+    var avgTx = txCount > 0 ? totalAmount / txCount : 0;
+    var uniqueCustomers = new Set(knownData.map(function(d) { return d.holder; })).size;
+    var uniqueMachines = new Set(data.map(function(d) { return d.machine; })).size;
+
+    var parsedDates = data.map(function(d) { var parts = d.date.split(' ')[0].split('.'); return new Date(+parts[2], +parts[1] - 1, +parts[0]); }).filter(function(d) { return !isNaN(d); });
+    var minDate = new Date(Math.min.apply(null, parsedDates));
+    var maxDate = new Date(Math.max.apply(null, parsedDates));
+    var weeks = Math.max(1, Math.round((maxDate - minDate) / (7 * 86400000)));
+
+    document.getElementById('kpi-total').textContent = fmtCZK(totalAmount);
+    document.getElementById('kpi-total-detail').textContent = 'Prepaid kartove platby';
+    document.getElementById('kpi-tx').textContent = txCount;
+    document.getElementById('kpi-tx-detail').textContent = Math.round(txCount / weeks) + ' tx/tyden (prumer)';
+    document.getElementById('kpi-avg').textContent = fmtCZK(Math.round(avgTx));
+    document.getElementById('kpi-avg-detail').textContent = 'na jednu transakci';
+    document.getElementById('kpi-customers').textContent = uniqueCustomers;
+    document.getElementById('kpi-cust-detail').textContent = uniqueMachines + ' automatu v provozu';
+
+    var firmaData = allData.filter(function(d) { return getCardType(d.card) === 'firma'; });
+    var garazData = allData.filter(function(d) { return getCardType(d.card) === 'garaz'; });
+    var firmaTotal = firmaData.reduce(function(s, d) { return s + d.amount; }, 0);
+    var garazTotal = garazData.reduce(function(s, d) { return s + d.amount; }, 0);
+    var firmaCustomers = new Set(firmaData.filter(function(d) { return d.holder; }).map(function(d) { return d.holder; })).size;
+    var garazCustomers = new Set(garazData.filter(function(d) { return d.holder; }).map(function(d) { return d.holder; })).size;
+    document.getElementById('kpi-firma').textContent = fmtCZK(firmaTotal);
+    document.getElementById('kpi-firma-detail').textContent = firmaData.length + ' tx | ' + firmaCustomers + ' zakazniku';
+    document.getElementById('kpi-garaz').textContent = fmtCZK(garazTotal);
+    document.getElementById('kpi-garaz-detail').textContent = garazData.length + ' tx | ' + garazCustomers + ' zakazniku';
+
+    // Monthly chart
+    var monthlyData = {};
+    data.forEach(function(d) { var parts = d.date.split(' ')[0].split('.'); var key = parts[1] + '/' + parts[2]; if (!monthlyData[key]) monthlyData[key] = { total: 0, count: 0 }; monthlyData[key].total += d.amount; monthlyData[key].count++; });
+    var monthLabels = Object.keys(monthlyData).sort(function(a, b) { var ap = a.split('/'), bp = b.split('/'); return (ap[1] + ap[0]).localeCompare(bp[1] + bp[0]); });
+    var monthNameMap = { '01': 'Leden', '02': 'Unor', '03': 'Brezen', '04': 'Duben', '05': 'Kveten', '06': 'Cerven', '07': 'Cervenec', '08': 'Srpen', '09': 'Zari', '10': 'Rijen', '11': 'Listopad', '12': 'Prosinec' };
+    var monthNames = monthLabels.map(function(l) { var p = l.split('/'); return (monthNameMap[p[0]] || p[0]) + ' ' + p[1]; });
+
+    chartMonthly = new Chart(document.getElementById('chartMonthly'), {
+      type: 'bar', data: { labels: monthNames, datasets: [
+        { label: 'Obrat (CZK)', data: monthLabels.map(function(m) { return monthlyData[m].total; }), backgroundColor: '#4361ee', borderRadius: 6 },
+        { label: 'Pocet tx', data: monthLabels.map(function(m) { return monthlyData[m].count; }), backgroundColor: 'rgba(255,107,107,0.25)', borderColor: '#ff6b6b', borderWidth: 2, borderRadius: 6, yAxisID: 'y1' }
+      ]}, options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: 'CZK' } }, y1: { position: 'right', beginAtZero: true, title: { display: true, text: 'Transakce' }, grid: { display: false } } } }
+    });
+
+    // Machine chart
+    var machineData = {};
+    data.forEach(function(d) { if (!machineData[d.machine]) machineData[d.machine] = 0; machineData[d.machine] += d.amount; });
+    var macLabels = Object.keys(machineData).sort();
+    var machineColors = ['#4361ee', '#3a86ff', '#ff6b6b', '#ffd166', '#06d6a0', '#8338ec'];
+
+    chartMachines = new Chart(document.getElementById('chartMachines'), {
+      type: 'doughnut', data: { labels: macLabels, datasets: [{ data: macLabels.map(function(m) { return machineData[m]; }), backgroundColor: machineColors.slice(0, macLabels.length), borderWidth: 2, borderColor: '#fff' }] },
+      options: { responsive: true, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: function(ctx) { return ctx.label + ': ' + fmtCZK(ctx.parsed) + ' (' + Math.round(ctx.parsed / totalAmount * 100) + '%)'; } } } } }
+    });
+
+    // Daily chart
+    var dailyData = {};
+    data.forEach(function(d) { var day = d.date.split(' ')[0]; if (!dailyData[day]) dailyData[day] = 0; dailyData[day] += d.amount; });
+    var dailyEntries = Object.entries(dailyData).sort(function(a, b) { var ap = a[0].split('.'), bp = b[0].split('.'); return new Date(+ap[2], +ap[1]-1, +ap[0]) - new Date(+bp[2], +bp[1]-1, +bp[0]); });
+
+    chartDaily = new Chart(document.getElementById('chartDaily'), {
+      type: 'line', data: { labels: dailyEntries.map(function(e) { return e[0]; }), datasets: [{ label: 'Denni obrat (CZK)', data: dailyEntries.map(function(e) { return e[1]; }), borderColor: '#4361ee', backgroundColor: 'rgba(67,97,238,0.1)', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#4361ee' }] },
+      options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: 'CZK' } }, x: { ticks: { maxRotation: 45 } } }, plugins: { legend: { display: false } } }
+    });
+
+    // Customer table
+    var customerStats = {};
+    knownData.forEach(function(d) { if (!customerStats[d.holder]) customerStats[d.holder] = { count: 0, total: 0, cards: {} }; customerStats[d.holder].count++; customerStats[d.holder].total += d.amount; var ct = getCardType(d.card); if (ct) customerStats[d.holder].cards[ct] = (customerStats[d.holder].cards[ct] || 0) + 1; });
+    var sortedCustomers = Object.entries(customerStats).sort(function(a, b) { return b[1].total - a[1].total; });
+    var maxCustTotal = sortedCustomers.length > 0 ? sortedCustomers[0][1].total : 1;
+
+    var tbody = document.getElementById('customerTable');
+    tbody.innerHTML = '';
+    sortedCustomers.forEach(function(entry) {
+      var name = entry[0], stats = entry[1];
+      var pct = (stats.total / totalAmount * 100).toFixed(1);
+      var barPct = (stats.total / maxCustTotal * 100).toFixed(0);
+      var avg = Math.round(stats.total / stats.count);
+      var custType = (stats.cards.firma || 0) >= (stats.cards.garaz || 0) ? 'firma' : 'garaz';
+      var hasType = (stats.cards.firma || 0) + (stats.cards.garaz || 0) > 0;
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + escapeHtml(name) + '</td><td>' + (hasType ? typeBadge(custType) : typeBadge(null)) + '</td><td class="text-right">' + stats.count + '</td><td class="text-right"><strong>' + fmtCZK(stats.total) + '</strong></td><td><div class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="width:' + barPct + '%"></div></div><span style="font-size:12px;color:#666">' + pct + '%</span></div></td><td class="text-right">' + fmtCZK(avg) + '</td>';
+      tbody.appendChild(tr);
+    });
+
+    // Recent table
+    var recentTbody = document.getElementById('recentTable');
+    recentTbody.innerHTML = '';
+    data.slice(0, 20).forEach(function(d) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>' + escapeHtml(d.date) + '</td><td>' + (d.holder ? escapeHtml(d.holder) : '<span style="color:#999">Neznamy</span>') + '</td><td>' + typeBadge(getCardType(d.card)) + '</td><td><span class="badge badge-blue">' + escapeHtml(d.machine) + '</span></td><td class="text-right"><strong>' + fmtCZK(d.amount) + '</strong></td>';
+      recentTbody.appendChild(tr);
+    });
+  }
+
+  // Auto-load from data.js
+  if (typeof PRELOADED_DATA !== 'undefined' && PRELOADED_DATA && PRELOADED_DATA.rows) {
+    window.dashLoadPreloaded(PRELOADED_DATA);
+  }
+})();
+
+// ===== ANALYZA JS =====
+(function() {
+  function setupUpload(zoneEl, inputEl) {
+    inputEl.addEventListener('change', function(e) { if(e.target.files[0]) anaProcessFile(e.target.files[0]); });
+    zoneEl.addEventListener('dragover', function(e) { e.preventDefault(); e.stopPropagation(); zoneEl.classList.add('dragover'); });
+    zoneEl.addEventListener('dragleave', function(e) { e.preventDefault(); zoneEl.classList.remove('dragover'); });
+    zoneEl.addEventListener('drop', function(e) { e.preventDefault(); e.stopPropagation(); zoneEl.classList.remove('dragover'); if(e.dataTransfer.files[0]) anaProcessFile(e.dataTransfer.files[0]); });
+  }
+  setupUpload(document.getElementById('anaHeaderUpload'), document.getElementById('anaHeaderFileInput'));
+  setupUpload(document.getElementById('anaWelcomeDrop'), document.getElementById('anaWelcomeFileInput'));
+
+  function anaProcessFile(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var wb = XLSX.read(e.target.result, {type:'array'});
+        var raw = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1});
+        runAnalysis(raw, file.name);
+      } catch(err) { alert('Chyba při zpracování souboru: ' + err.message); }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // Date parsing
+  function parseDate(s) {
+    if (!s) return null;
+    var m = String(s).match(/(\d{1,2})\.(\d{2})\.(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})/);
+    if (!m) return null;
+    return new Date(+m[3], m[2]-1, +m[1], +m[4], +m[5], +m[6]);
+  }
+  function fmtDate(d) { return d.toLocaleDateString('cs-CZ'); }
+  function fmtCZK(n) { return n.toLocaleString('cs-CZ') + ' Kč'; }
+  var DAYS = ['Ne','Po','Út','St','Čt','Pá','So'];
+  var DAYS_ORDER = [1,2,3,4,5,6,0];
+
+  var charts = [];
+  function destroyCharts() { charts.forEach(function(c) { c.destroy(); }); charts = []; }
+
+  function runAnalysis(raw, filename) {
+    try { _runAnalysis(raw, filename); }
+    catch(err) { alert('Chyba v analýze: ' + err.message + '\n' + err.stack); }
+  }
+  window.anaRunAnalysis = runAnalysis;
+
+  function _runAnalysis(raw, filename) {
+    destroyCharts();
+    _anaDataLoaded = true;
+    var headers = raw[1];
+    var hIdx = {};
+    headers.forEach(function(h,i) { if(h) hIdx[h.toString().trim()] = i; });
+
+    var data = [];
+    for (var i = 2; i < raw.length; i++) {
+      var r = raw[i];
+      if (!r[hIdx['Site ID']] && r[hIdx['Currency']] === 'Total') continue;
+      if (!r[hIdx['Site ID']]) continue;
+      var time = parseDate(r[hIdx['Machine Authorization Time']]);
+      if (!time) continue;
+      data.push({ machine: r[hIdx['Machine Name']] || '', auth: Number(r[hIdx['Authorization Value']]) || 0, settl: Number(r[hIdx['Settlment Value']]) || 0, card: r[hIdx['Card Number']] || '', method: (r[hIdx['Payment Method (Source)']] || '').toString().trim(), status: r[hIdx['Transaction Status ID']], product: r[hIdx['Product Code in Map']], time: time });
+    }
+
+    var ok = data.filter(function(r) { return r.status === 12; });
+
+    // Sessions
+    var byCard = {};
+    ok.forEach(function(r) { if (!r.card) return; if (!byCard[r.card]) byCard[r.card] = []; byCard[r.card].push(r); });
+
+    var sessions = [];
+    Object.entries(byCard).forEach(function(entry) {
+      var card = entry[0], txns = entry[1];
+      txns.sort(function(a,b) { return a.time - b.time; });
+      var i = 0;
+      while (i < txns.length) {
+        var s = [txns[i]]; var j = i + 1;
+        while (j < txns.length && (txns[j].time - txns[j-1].time) / 60000 <= 15 && txns[j].machine === txns[j-1].machine) { s.push(txns[j]); j++; }
+        sessions.push({ time: s[0].time, machine: s[0].machine, total: s.reduce(function(a,x) { return a + x.settl; }, 0), taps: s.length, card: card });
+        i = j;
+      }
+    });
+
+    var times = sessions.map(function(s) { return s.time; }).sort(function(a,b) { return a-b; });
+    var minDate = times[0], maxDate = times[times.length-1];
+    var totalDays = Math.ceil((maxDate - minDate) / 86400000) + 1;
+    var failed = data.filter(function(r) { return r.status !== 12; });
+    var totalRevenue = sessions.reduce(function(a,s) { return a + s.total; }, 0);
+    var avgPerSession = Math.round(totalRevenue / sessions.length);
+    var uniqueCards = new Set(sessions.map(function(s) { return s.card; })).size;
+    var activeDays = new Set(sessions.map(function(s) { return s.time.toISOString().slice(0,10); })).size;
+    var avgPerDay = Math.round(totalRevenue / activeDays);
+    var multiTapSessions = sessions.filter(function(s) { return s.taps > 1; });
+    var singleTapSessions = sessions.filter(function(s) { return s.taps === 1; });
+
+    // UI
+    document.getElementById('anaWelcome').style.display = 'none';
+    document.getElementById('anaReport').style.display = 'block';
+    document.getElementById('anaPrintBtn').style.display = '';
+    document.getElementById('anaHeaderUpload').classList.add('loaded');
+    document.getElementById('anaDateRange').innerHTML = fmtDate(minDate) + ' \u2014 ' + fmtDate(maxDate) + ' (' + totalDays + ' dní) &nbsp;|&nbsp; ' + filename;
+
+    // KPIs
+    var kpiRow = document.getElementById('anaKpiRow');
+    kpiRow.innerHTML = [
+      kpi('Tržby celkem', fmtCZK(totalRevenue), activeDays + ' aktivních dní', ''),
+      kpi('Sessions (mytí)', sessions.length.toLocaleString('cs-CZ'), (sessions.length / activeDays).toFixed(1) + ' / den', 'green'),
+      kpi('Průměr / session', fmtCZK(avgPerSession), 'median: ' + fmtCZK(median(sessions.map(function(s){return s.total;}))), 'purple'),
+      kpi('Denní průměr', fmtCZK(avgPerDay), 'max: ' + fmtCZK(Math.max.apply(null, Object.values(groupByDate(sessions)).map(function(a){return a.reduce(function(s,x){return s+x.total;},0);}))), 'orange'),
+      kpi('Unikátních karet', uniqueCards.toLocaleString('cs-CZ'), 'opakovaných: ' + sessions.filter(function(s) { return byCard[s.card].length > 1; }).length + ' sessions', ''),
+      kpi('Neúspěšných txn', failed.length.toString(), Math.round(failed.length/data.length*100) + ' % z celku', 'orange'),
+    ].join('');
+
+    // Session info box
+    var mtSessions = multiTapSessions.length;
+    var mtTotal = sessions.length;
+    var mtPctInfo = Math.round(mtSessions / mtTotal * 100);
+    var infoBox = document.getElementById('anaSessionInfoBox');
+    infoBox.style.display = 'block';
+    infoBox.innerHTML = '<div class="info-title">ℹ️ Co znamená „session" v tomto reportu?</div>'
+      + '<p>Jeden <strong>session = jedno mytí auta</strong>. Zákazníci na samoobslužné myčce často platí postupně — '
+      + 'přikládají kartu opakovaně během jednoho mytí (tzv. multi-tap). Proto je počet surových transakcí výrazně vyšší než skutečný počet umytých aut.</p>'
+      + '<p style="margin-top:8px;">Report automaticky seskupuje transakce do sessions podle pravidla: <strong>stejná karta + stejný box + méně než 15 minut mezi transakcemi</strong>.</p>'
+      + '<div class="info-example">'
+      + '<strong>Příklad:</strong> Zákazník přijede do BOX 2 a během 5 minut provede 4 platby: 20 + 20 + 20 + 60 Kč → v reportu = <strong>1 session</strong> s celkovou útratou <strong>120 Kč</strong>.<br>'
+      + '<span style="margin-top:4px;display:inline-block;">V tomto datasetu tvoří multi-tap sessions <strong>' + mtPctInfo + ' %</strong> všech sessions (' + mtSessions + ' z ' + mtTotal + ').</span>'
+      + '</div>';
+
+    // Weekly trend
+    var byWeek = {};
+    sessions.forEach(function(s) { var d = s.time.getDay() || 7; var mon = new Date(s.time); mon.setDate(s.time.getDate() - d + 1); var key = mon.toISOString().slice(0,10); if (!byWeek[key]) byWeek[key] = {revenue:0, count:0}; byWeek[key].revenue += s.total; byWeek[key].count++; });
+    var weekKeys = Object.keys(byWeek).sort();
+    charts.push(new Chart(document.getElementById('anaWeeklyChart'), {
+      type: 'bar', data: { labels: weekKeys.map(function(w) { var d = new Date(w); return d.getDate() + '.' + (d.getMonth()+1) + '.'; }), datasets: [{ label: 'Tržby (Kč)', data: weekKeys.map(function(w) { return byWeek[w].revenue; }), backgroundColor: weekKeys.map(function(w) { return byWeek[w].revenue > totalRevenue/weekKeys.length ? '#4361ee' : '#94a3b8'; }), borderRadius: 6 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: function(v) { return v.toLocaleString('cs-CZ'); } } } } }
+    }));
+
+    // Hour chart
+    function computeHourData(filterDays) {
+      var byHour = {};
+      sessions.forEach(function(s) { if (filterDays.length > 0 && filterDays.indexOf(s.time.getDay()) === -1) return; var h = s.time.getHours(); if (!byHour[h]) byHour[h] = {revenue:0, count:0}; byHour[h].revenue += s.total; byHour[h].count++; });
+      var hourKeys = Object.keys(byHour).map(Number).sort(function(a,b){return a-b;});
+      return { hourKeys: hourKeys, revenue: hourKeys.map(function(h) { return byHour[h].revenue; }), count: hourKeys.map(function(h) { return byHour[h].count; }) };
+    }
+    var initHour = computeHourData([]);
+    var hourKeys = initHour.hourKeys;
+    var hourChart = new Chart(document.getElementById('anaHourChart'), {
+      type: 'bar', data: { labels: initHour.hourKeys.map(function(h) { return h + ':00'; }), datasets: [
+        { label: 'Tržby (Kč)', data: initHour.revenue, backgroundColor: '#4361ee', borderRadius: 4, order: 1 },
+        { label: 'Sessions', data: initHour.count, type: 'line', borderColor: '#f59e0b', backgroundColor: 'transparent', yAxisID: 'y1', pointRadius: 3, tension: 0.3, order: 0 }
+      ]}, options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }, scales: { y: { beginAtZero: true, ticks: { callback: function(v){return v.toLocaleString('cs-CZ');} }, title: { display: true, text: 'Kč', font: { size: 11 } } }, y1: { position: 'right', beginAtZero: true, grid: { display: false }, title: { display: true, text: 'Sessions', font: { size: 11 } } } } }
+    });
+    charts.push(hourChart);
+    function updateHourChart() {
+      var activeBtns = document.querySelectorAll('#anaHourDayFilter .hour-day-btn.active');
+      var allBtn = document.querySelector('#anaHourDayFilter .hour-day-btn[data-day="all"]');
+      var selectedDays = [];
+      activeBtns.forEach(function(b) { if (b.dataset.day !== 'all') selectedDays.push(Number(b.dataset.day)); });
+      var isAll = allBtn.classList.contains('active') || selectedDays.length === 0;
+      document.querySelectorAll('#anaHourDayFilter .hour-day-btn').forEach(function(b) {
+        var on = b.dataset.day === 'all' ? isAll : selectedDays.indexOf(Number(b.dataset.day)) !== -1;
+        b.style.background = on ? '#4361ee' : '#f0f0f0'; b.style.color = on ? '#fff' : '#333';
+        if (on) b.classList.add('active'); else b.classList.remove('active');
+      });
+      if (isAll) { allBtn.classList.add('active'); allBtn.style.background = '#4361ee'; allBtn.style.color = '#fff'; }
+      var d = computeHourData(isAll ? [] : selectedDays);
+      hourChart.data.labels = d.hourKeys.map(function(h) { return h + ':00'; });
+      hourChart.data.datasets[0].data = d.revenue; hourChart.data.datasets[1].data = d.count; hourChart.update();
+    }
+    document.querySelectorAll('#anaHourDayFilter .hour-day-btn').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        if (btn.dataset.day === 'all') { document.querySelectorAll('#anaHourDayFilter .hour-day-btn').forEach(function(b){b.classList.remove('active');}); btn.classList.add('active'); }
+        else { var allBtn = document.querySelector('#anaHourDayFilter .hour-day-btn[data-day="all"]'); allBtn.classList.remove('active');
+          if (e.shiftKey || e.ctrlKey || e.metaKey) { btn.classList.toggle('active'); } else { document.querySelectorAll('#anaHourDayFilter .hour-day-btn').forEach(function(b){b.classList.remove('active');}); btn.classList.add('active'); }
+          if (!document.querySelector('#anaHourDayFilter .hour-day-btn.active')) allBtn.classList.add('active');
+        }
+        updateHourChart();
+      });
+    });
+
+    // Day chart
+    var byDay = {};
+    sessions.forEach(function(s) { var d = s.time.getDay(); if (!byDay[d]) byDay[d] = {revenue:0, count:0}; byDay[d].revenue += s.total; byDay[d].count++; });
+    var dayCounts = [0,0,0,0,0,0,0];
+    for (var d = new Date(minDate); d <= maxDate; d.setDate(d.getDate()+1)) dayCounts[d.getDay()]++;
+
+    charts.push(new Chart(document.getElementById('anaDayChart'), {
+      type: 'bar', data: { labels: DAYS_ORDER.map(function(d){return DAYS[d];}), datasets: [{ label: 'Kč / den (průměr)', data: DAYS_ORDER.map(function(d) { return byDay[d] ? Math.round(byDay[d].revenue / dayCounts[d]) : 0; }), backgroundColor: DAYS_ORDER.map(function(d) { return d===0||d===6 ? '#4361ee' : '#94a3b8'; }), borderRadius: 4 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: function(v){return v.toLocaleString('cs-CZ');} } } } }
+    }));
+
+    // Heatmap
+    var hmData = {};
+    sessions.forEach(function(s) { var key = s.time.getDay() + '-' + s.time.getHours(); if (!hmData[key]) hmData[key] = 0; hmData[key]++; });
+    var hmHours = hourKeys.filter(function(h) { return h >= 5 && h <= 23; });
+    var maxHm = Math.max.apply(null, Object.values(hmData).concat([1]));
+    function hmColor(v) { if (v === 0) return '#f8fafc'; var intensity = v / maxHm; if (intensity < 0.25) return '#dbeafe'; if (intensity < 0.45) return '#93c5fd'; if (intensity < 0.65) return '#3b82f6'; if (intensity < 0.8) return '#1d4ed8'; return '#1e3a8a'; }
+    function hmTextColor(v) { return (v / maxHm) > 0.45 ? '#fff' : '#334155'; }
+
+    var hmHtml = '<h3>Počet sessions — den x hodina</h3><table class="heatmap"><thead><tr><th></th>';
+    hmHours.forEach(function(h) { hmHtml += '<th>' + h + 'h</th>'; });
+    hmHtml += '</tr></thead><tbody>';
+    DAYS_ORDER.forEach(function(d) {
+      hmHtml += '<tr><td class="row-label">' + DAYS[d] + '</td>';
+      hmHours.forEach(function(h) { var v = hmData[d+'-'+h] || 0; hmHtml += '<td style="background:' + hmColor(v) + ';color:' + hmTextColor(v) + '">' + (v||'') + '</td>'; });
+      hmHtml += '</tr>';
+    });
+    hmHtml += '</tbody></table>';
+    document.getElementById('anaHeatmapCard').innerHTML = hmHtml;
+
+    // Box chart
+    var byBox = {};
+    sessions.filter(function(s) { return s.machine.startsWith('BOX'); }).forEach(function(s) { if (!byBox[s.machine]) byBox[s.machine] = {revenue:0, count:0}; byBox[s.machine].revenue += s.total; byBox[s.machine].count++; });
+    var boxKeys = Object.keys(byBox).sort();
+    charts.push(new Chart(document.getElementById('anaBoxChart'), {
+      type: 'bar', data: { labels: boxKeys, datasets: [{ label: 'Tržby (Kč)', data: boxKeys.map(function(k) { return byBox[k].revenue; }), backgroundColor: ['#94a3b8','#4361ee','#4361ee'], borderRadius: 4 }] },
+      options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, ticks: { callback: function(v){return v.toLocaleString('cs-CZ');} } } } }
+    }));
+
+    // Daypart chart
+    var dayparts = { 'Ráno (5\u201310)': {s:0,r:0}, 'Dopoledne (10\u201313)': {s:0,r:0}, 'Odpoledne (13\u201317)': {s:0,r:0}, 'Večer (17+)': {s:0,r:0} };
+    sessions.forEach(function(s) {
+      var h = s.time.getHours();
+      if (h >= 5 && h < 10) { dayparts['Ráno (5\u201310)'].s++; dayparts['Ráno (5\u201310)'].r += s.total; }
+      else if (h >= 10 && h < 13) { dayparts['Dopoledne (10\u201313)'].s++; dayparts['Dopoledne (10\u201313)'].r += s.total; }
+      else if (h >= 13 && h < 17) { dayparts['Odpoledne (13\u201317)'].s++; dayparts['Odpoledne (13\u201317)'].r += s.total; }
+      else { dayparts['Večer (17+)'].s++; dayparts['Večer (17+)'].r += s.total; }
+    });
+    charts.push(new Chart(document.getElementById('anaDaypartChart'), {
+      type: 'doughnut', data: { labels: Object.keys(dayparts), datasets: [{ data: Object.values(dayparts).map(function(v){return v.r;}), backgroundColor: ['#93c5fd','#60a5fa','#4361ee','#1e3a8a'] }] },
+      options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
+    }));
+
+    // Daily distribution
+    var dailyRevs = Object.values(groupByDate(sessions)).map(function(arr) { return arr.reduce(function(s,x){return s+x.total;},0); });
+    var buckets = {'0\u2013500':0, '501\u20131000':0, '1001\u20131500':0, '1501\u20132000':0, '2001\u20133000':0, '3000+':0};
+    dailyRevs.forEach(function(v) { if (v<=500) buckets['0\u2013500']++; else if (v<=1000) buckets['501\u20131000']++; else if (v<=1500) buckets['1001\u20131500']++; else if (v<=2000) buckets['1501\u20132000']++; else if (v<=3000) buckets['2001\u20133000']++; else buckets['3000+']++; });
+    charts.push(new Chart(document.getElementById('anaDailyDistChart'), {
+      type: 'bar', data: { labels: Object.keys(buckets), datasets: [{ label: 'Dní', data: Object.values(buckets), backgroundColor: '#4361ee', borderRadius: 4 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, title: { display: true, text: 'Počet dní', font: { size: 11 } } }, x: { title: { display: true, text: 'Kč / den', font: { size: 11 } } } } }
+    }));
+
+    // Monthly table
+    var byMonth = {};
+    sessions.forEach(function(s) { var key = s.time.getFullYear() + '-' + String(s.time.getMonth()+1).padStart(2,'0'); if (!byMonth[key]) byMonth[key] = {revenue:0, count:0, days: new Set()}; byMonth[key].revenue += s.total; byMonth[key].count++; byMonth[key].days.add(s.time.toISOString().slice(0,10)); });
+    var monthKeys = Object.keys(byMonth).sort();
+    var mHtml = '<h3>Měsíční přehled</h3><table class="data"><thead><tr><th>Měsíc</th><th class="text-right">Sessions</th><th class="text-right">Tržby</th><th class="text-right">Kč/den</th><th class="text-right">Změna</th></tr></thead><tbody>';
+    monthKeys.forEach(function(m,i) {
+      var v = byMonth[m]; var perDay = Math.round(v.revenue / v.days.size);
+      var prevPerDay = i > 0 ? Math.round(byMonth[monthKeys[i-1]].revenue / byMonth[monthKeys[i-1]].days.size) : null;
+      var change = prevPerDay ? Math.round((perDay - prevPerDay) / prevPerDay * 100) : null;
+      var changeStr = change !== null ? (change >= 0 ? '<span style="color:#10b981">+' + change + '%</span>' : '<span style="color:#ef4444">' + change + '%</span>') : '\u2014';
+      mHtml += '<tr><td class="bold">' + m + '</td><td class="text-right">' + v.count + '</td><td class="text-right">' + fmtCZK(v.revenue) + '</td><td class="text-right bold">' + fmtCZK(perDay) + '</td><td class="text-right">' + changeStr + '</td></tr>';
+    });
+    mHtml += '</tbody></table>';
+    document.getElementById('anaMonthTableCard').innerHTML = mHtml;
+
+    // Month trend chart
+    charts.push(new Chart(document.getElementById('anaMonthTrendChart'), {
+      type: 'line', data: { labels: monthKeys, datasets: [{ label: 'Kč / aktivní den', data: monthKeys.map(function(m) { return Math.round(byMonth[m].revenue / byMonth[m].days.size); }), borderColor: '#4361ee', backgroundColor: 'rgba(67,97,238,0.1)', fill: true, tension: 0.3, pointRadius: 5, pointBackgroundColor: '#4361ee' }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: function(v){return v.toLocaleString('cs-CZ');} } } } }
+    }));
+
+    // Weather data
+    var WEATHER_DATA = {
+'2025-12-01':{tmax:2.5,prec:0.3},'2025-12-02':{tmax:3.3,prec:0},'2025-12-03':{tmax:3.2,prec:0.1},'2025-12-04':{tmax:5.3,prec:0},
+'2025-12-05':{tmax:5.7,prec:7.7},'2025-12-06':{tmax:4.2,prec:0},'2025-12-07':{tmax:8.1,prec:0.3},'2025-12-08':{tmax:13.1,prec:2.8},
+'2025-12-09':{tmax:13.2,prec:0.5},'2025-12-10':{tmax:11.7,prec:0.1},'2025-12-11':{tmax:11.6,prec:0.5},'2025-12-12':{tmax:4.6,prec:0},
+'2025-12-13':{tmax:3.1,prec:0},'2025-12-14':{tmax:4.3,prec:0},'2025-12-15':{tmax:2.8,prec:0},'2025-12-16':{tmax:2,prec:0},
+'2025-12-17':{tmax:3,prec:0},'2025-12-18':{tmax:3.3,prec:0},'2025-12-19':{tmax:3.2,prec:0},'2025-12-20':{tmax:3.3,prec:0.4},
+'2025-12-21':{tmax:4.1,prec:0},'2025-12-22':{tmax:4.8,prec:0},'2025-12-23':{tmax:4.4,prec:0.1},'2025-12-24':{tmax:1.4,prec:0.1},
+'2025-12-25':{tmax:-0.3,prec:0},'2025-12-26':{tmax:0.2,prec:0},'2025-12-27':{tmax:1.5,prec:0.1},'2025-12-28':{tmax:1.8,prec:0},
+'2025-12-29':{tmax:1.8,prec:0.9},'2025-12-30':{tmax:0.7,prec:2.3},'2025-12-31':{tmax:1.4,prec:4.2},
+'2026-01-01':{tmax:1.6,prec:0.1},'2026-01-02':{tmax:2.1,prec:2.6},'2026-01-03':{tmax:0.9,prec:0.7},'2026-01-04':{tmax:0.6,prec:0.2},
+'2026-01-05':{tmax:-2.5,prec:0},'2026-01-06':{tmax:-2.8,prec:0},'2026-01-07':{tmax:-2.7,prec:0},'2026-01-08':{tmax:-3.8,prec:0},
+'2026-01-09':{tmax:-3.2,prec:11.6},'2026-01-10':{tmax:-2.8,prec:4.2},'2026-01-11':{tmax:-4.8,prec:0},'2026-01-12':{tmax:-5.2,prec:1.2},
+'2026-01-13':{tmax:1.6,prec:3.6},'2026-01-14':{tmax:2.8,prec:0.2},'2026-01-15':{tmax:2.4,prec:0.7},'2026-01-16':{tmax:1.7,prec:0},
+'2026-01-17':{tmax:4.1,prec:0},'2026-01-18':{tmax:4,prec:0},'2026-01-19':{tmax:0.8,prec:0},'2026-01-20':{tmax:-0.3,prec:0},
+'2026-01-21':{tmax:0.2,prec:0},'2026-01-22':{tmax:-0.9,prec:0},'2026-01-23':{tmax:-1.4,prec:0},'2026-01-24':{tmax:1,prec:0},
+'2026-01-25':{tmax:4,prec:2.2},'2026-01-26':{tmax:5.2,prec:3.3},'2026-01-27':{tmax:3.5,prec:0},'2026-01-28':{tmax:2.5,prec:0},
+'2026-01-29':{tmax:1.2,prec:5},'2026-01-30':{tmax:1,prec:0.4},'2026-01-31':{tmax:0.5,prec:0.1},
+'2026-02-01':{tmax:-1.8,prec:0},'2026-02-02':{tmax:1,prec:0},'2026-02-03':{tmax:1.6,prec:0.8},'2026-02-04':{tmax:3.2,prec:1.4},
+'2026-02-05':{tmax:4.3,prec:1.5},'2026-02-06':{tmax:5.9,prec:0},'2026-02-07':{tmax:5.2,prec:0.5},'2026-02-08':{tmax:4.2,prec:3.1},
+'2026-02-09':{tmax:4.5,prec:0},'2026-02-10':{tmax:6.2,prec:0.3},'2026-02-11':{tmax:6.8,prec:6},'2026-02-12':{tmax:10.1,prec:7.4},
+'2026-02-13':{tmax:9.4,prec:2},'2026-02-14':{tmax:4.9,prec:0.8},'2026-02-15':{tmax:-0.1,prec:0},'2026-02-16':{tmax:-1.6,prec:1.3},
+'2026-02-17':{tmax:3.3,prec:1.6},'2026-02-18':{tmax:3.8,prec:1.1},'2026-02-19':{tmax:3.7,prec:0},'2026-02-20':{tmax:1.8,prec:0},
+'2026-02-21':{tmax:9.4,prec:1.1},'2026-02-22':{tmax:9.6,prec:5.2},'2026-02-23':{tmax:13.1,prec:10.3},'2026-02-24':{tmax:9.6,prec:0.5},
+'2026-02-25':{tmax:11.4,prec:0},'2026-02-26':{tmax:12.6,prec:0},'2026-02-27':{tmax:14.1,prec:0},'2026-02-28':{tmax:13.9,prec:0},
+'2026-03-01':{tmax:9.4,prec:1.8},'2026-03-02':{tmax:7.9,prec:0},'2026-03-03':{tmax:11.3,prec:0},'2026-03-04':{tmax:12.2,prec:0},
+'2026-03-05':{tmax:12.4,prec:0},'2026-03-06':{tmax:14.8,prec:0},'2026-03-07':{tmax:16.1,prec:0},'2026-03-08':{tmax:14.4,prec:0},
+'2026-03-09':{tmax:16.8,prec:0},'2026-03-10':{tmax:15.1,prec:15.8},'2026-03-11':{tmax:16.2,prec:0.2},'2026-03-12':{tmax:10.6,prec:2.2},
+'2026-03-13':{tmax:16.4,prec:0},'2026-03-14':{tmax:16.6,prec:0},'2026-03-15':{tmax:8.9,prec:0.7},'2026-03-16':{tmax:11.3,prec:1.7},
+'2026-03-17':{tmax:10.5,prec:0},'2026-03-18':{tmax:14.8,prec:0},'2026-03-19':{tmax:14.1,prec:0},'2026-03-20':{tmax:12.1,prec:0.5},
+'2026-03-21':{tmax:10.5,prec:0},'2026-03-22':{tmax:14.1,prec:0}
+    };
+
+    function precLastN(dateStr, n) {
+      var d = new Date(dateStr); var total = 0;
+      for (var i = 1; i <= n; i++) { var prev = new Date(d); prev.setDate(d.getDate() - i); var key = prev.toISOString().slice(0, 10); if (WEATHER_DATA[key]) total += WEATHER_DATA[key].prec; }
+      return total;
+    }
+
+    // Top / Bottom days
+    var byDate = groupByDate(sessions);
+    var dayEntries = Object.entries(byDate).map(function(entry) { return { date: entry[0], revenue: entry[1].reduce(function(s,x){return s+x.total;},0), count: entry[1].length, day: entry[1][0].time.getDay() }; });
+
+    function daysTable(title, entries) {
+      var h = '<h3>' + title + '</h3><table class="data"><thead><tr><th>Datum</th><th>Den</th><th class="text-right">Ses.</th><th class="text-right">Tržby</th><th class="text-right">\u00B0C</th><th class="text-right">mm</th><th class="text-right">mm/3d</th></tr></thead><tbody>';
+      entries.forEach(function(e) { var w = WEATHER_DATA[e.date]; var p3 = w ? precLastN(e.date, 3) : null; h += '<tr><td>' + e.date + '</td><td>' + DAYS[e.day] + '</td><td class="text-right">' + e.count + '</td><td class="text-right bold">' + fmtCZK(e.revenue) + '</td><td class="text-right">' + (w ? w.tmax : '\u2014') + '</td><td class="text-right">' + (w ? w.prec : '\u2014') + '</td><td class="text-right">' + (p3 !== null ? p3.toFixed(1) : '\u2014') + '</td></tr>'; });
+      return h + '</tbody></table>';
+    }
+    document.getElementById('anaTopDaysCard').innerHTML = daysTable('Top 10 \u2014 nejlepší dny', dayEntries.sort(function(a,b){return b.revenue-a.revenue;}).slice(0,10));
+    document.getElementById('anaBottomDaysCard').innerHTML = daysTable('Bottom 10 \u2014 nejslabší dny', dayEntries.sort(function(a,b){return a.revenue-b.revenue;}).slice(0,10));
+
+    // Multi-tap
+    var mtAvg = multiTapSessions.length ? Math.round(multiTapSessions.reduce(function(s,x){return s+x.total;},0) / multiTapSessions.length) : 0;
+    var stAvg = singleTapSessions.length ? Math.round(singleTapSessions.reduce(function(s,x){return s+x.total;},0) / singleTapSessions.length) : 0;
+    var mtPct = Math.round(multiTapSessions.reduce(function(s,x){return s+x.taps;},0) / ok.length * 100);
+    var mtHtml = '<h3>Multi-tap analýza</h3><p style="font-size:13px;color:#64748b;margin-bottom:14px;">Detailní pohled na multi-tap chování zákazníků.</p><table class="data"><tbody>';
+    mtHtml += '<tr><td>Celkem sessions</td><td class="text-right bold">' + sessions.length + '</td></tr>';
+    mtHtml += '<tr><td>Multi-tap sessions (2+ přiložení)</td><td class="text-right bold">' + multiTapSessions.length + ' (' + Math.round(multiTapSessions.length/sessions.length*100) + ' %)</td></tr>';
+    mtHtml += '<tr><td>Single-tap sessions</td><td class="text-right">' + singleTapSessions.length + '</td></tr>';
+    mtHtml += '<tr><td>Multi-tap: průměr / session</td><td class="text-right bold">' + fmtCZK(mtAvg) + '</td></tr>';
+    mtHtml += '<tr><td>Single-tap: průměr / session</td><td class="text-right">' + fmtCZK(stAvg) + '</td></tr>';
+    mtHtml += '<tr><td>Multi-tap txn jako % všech</td><td class="text-right">' + mtPct + ' %</td></tr>';
+    mtHtml += '</tbody></table>';
+    document.getElementById('anaMultitapCard').innerHTML = mtHtml;
+
+    // Spend distribution
+    var spendBuckets = {'0\u201350':0, '51\u201380':0, '81\u2013120':0, '121\u2013160':0, '161\u2013200':0, '201\u2013300':0, '300+':0};
+    sessions.forEach(function(s) { var v = s.total; if (v<=50) spendBuckets['0\u201350']++; else if (v<=80) spendBuckets['51\u201380']++; else if (v<=120) spendBuckets['81\u2013120']++; else if (v<=160) spendBuckets['121\u2013160']++; else if (v<=200) spendBuckets['161\u2013200']++; else if (v<=300) spendBuckets['201\u2013300']++; else spendBuckets['300+']++; });
+    charts.push(new Chart(document.getElementById('anaSpendDistChart'), {
+      type: 'bar', data: { labels: Object.keys(spendBuckets).map(function(k){return k + ' Kč';}), datasets: [{ label: 'Sessions', data: Object.values(spendBuckets), backgroundColor: '#7c3aed', borderRadius: 4 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    }));
+
+    // Weather correlation
+    var dailyByDate = groupByDate(sessions);
+    var wxPairs = [];
+    Object.entries(dailyByDate).forEach(function(entry) { var date = entry[0], arr = entry[1]; var w = WEATHER_DATA[date]; if (!w) return; wxPairs.push({ date: date, rev: arr.reduce(function(s,x){return s+x.total;},0), tmax: w.tmax, prec: w.prec, p3: precLastN(date, 3), day: arr[0].time.getDay() }); });
+
+    var tempBkts = [
+      { label: 'pod 0 \u00B0C', min: -99, max: 0, revs: [] },
+      { label: '0\u20135 \u00B0C', min: 0, max: 5, revs: [] },
+      { label: '5\u201310 \u00B0C', min: 5, max: 10, revs: [] },
+      { label: '10\u201315 \u00B0C', min: 10, max: 15, revs: [] },
+      { label: 'nad 15 \u00B0C', min: 15, max: 99, revs: [] }
+    ];
+    wxPairs.forEach(function(p) { tempBkts.forEach(function(b) { if (p.tmax >= b.min && p.tmax < b.max) b.revs.push(p.rev); }); });
+    charts.push(new Chart(document.getElementById('anaWeatherTempChart'), {
+      type: 'bar', data: { labels: tempBkts.map(function(b){return b.label + ' (' + b.revs.length + ' dní)';}), datasets: [{ label: 'Průměrné tržby / den', data: tempBkts.map(function(b) { return b.revs.length ? Math.round(b.revs.reduce(function(a,c){return a+c;},0)/b.revs.length) : 0; }), backgroundColor: ['#1e3a8a','#3b82f6','#60a5fa','#f59e0b','#ef4444'], borderRadius: 6 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: function(v){return v.toLocaleString('cs-CZ');} }, title: { display: true, text: 'Kč / den', font: { size: 11 } } } } }
+    }));
+
+    var precBkts = [
+      { label: '0 mm (sucho)', min: -1, max: 0.001, revs: [] },
+      { label: '0.1\u20132 mm', min: 0.001, max: 2.001, revs: [] },
+      { label: '2\u20135 mm', min: 2.001, max: 5.001, revs: [] },
+      { label: '5+ mm', min: 5.001, max: 999, revs: [] }
+    ];
+    wxPairs.forEach(function(p) { precBkts.forEach(function(b) { if (p.prec >= b.min && p.prec < b.max) b.revs.push(p.rev); }); });
+    charts.push(new Chart(document.getElementById('anaWeatherPrecChart'), {
+      type: 'bar', data: { labels: precBkts.map(function(b){return b.label + ' (' + b.revs.length + ' dní)';}), datasets: [{ label: 'Průměrné tržby / den', data: precBkts.map(function(b) { return b.revs.length ? Math.round(b.revs.reduce(function(a,c){return a+c;},0)/b.revs.length) : 0; }), backgroundColor: ['#f59e0b','#60a5fa','#3b82f6','#1e3a8a'], borderRadius: 6 }] },
+      options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: function(v){return v.toLocaleString('cs-CZ');} }, title: { display: true, text: 'Kč / den', font: { size: 11 } } } } }
+    }));
+
+    // Combo table
+    var warmDry = wxPairs.filter(function(p) { return p.tmax >= 10 && p.prec === 0; });
+    var warmDryAfterRain = wxPairs.filter(function(p) { return p.tmax >= 8 && p.prec === 0 && p.p3 > 2; });
+    var dryAfterRain = wxPairs.filter(function(p) { return p.prec === 0 && p.p3 > 2; });
+    var dryAfterDry = wxPairs.filter(function(p) { return p.prec === 0 && p.p3 <= 2; });
+    var coldWet = wxPairs.filter(function(p) { return p.tmax < 0 || p.prec > 2; });
+    function wxAvg(arr) { return arr.length ? Math.round(arr.reduce(function(a,p){return a+p.rev;},0)/arr.length) : 0; }
+
+    function pearson(x, y) { var n = x.length; var mx = x.reduce(function(a,b){return a+b;},0)/n; var my = y.reduce(function(a,b){return a+b;},0)/n; var num=0,dx=0,dy=0; for (var i=0;i<n;i++){num+=(x[i]-mx)*(y[i]-my);dx+=Math.pow(x[i]-mx,2);dy+=Math.pow(y[i]-my,2);} return dx&&dy ? num/Math.sqrt(dx*dy) : 0; }
+    var rTemp = pearson(wxPairs.map(function(p){return p.tmax;}), wxPairs.map(function(p){return p.rev;}));
+    var rPrec = pearson(wxPairs.map(function(p){return p.prec;}), wxPairs.map(function(p){return p.rev;}));
+
+    var comboHtml = '<h3>Vliv kombinace podmínek</h3>';
+    comboHtml += '<p style="font-size:12px;color:#64748b;margin-bottom:12px">Zdroj: Open-Meteo, oblast Nymburka. Pearsonova korelace: teplota r=' + rTemp.toFixed(2) + ', srážky r=' + rPrec.toFixed(2) + '</p>';
+    comboHtml += '<table class="data"><thead><tr><th>Podmínky</th><th class="text-right">Dní</th><th class="text-right">Prům. tržby</th></tr></thead><tbody>';
+    comboHtml += '<tr><td class="bold" style="color:#10b981">Teplo (&gt;10 \u00B0C) + sucho</td><td class="text-right">' + warmDry.length + '</td><td class="text-right bold">' + fmtCZK(wxAvg(warmDry)) + '</td></tr>';
+    comboHtml += '<tr><td class="bold" style="color:#10b981">Teplo + sucho + déšť předtím</td><td class="text-right">' + warmDryAfterRain.length + '</td><td class="text-right bold">' + fmtCZK(wxAvg(warmDryAfterRain)) + '</td></tr>';
+    comboHtml += '<tr><td>Sucho po dešti (&gt;2 mm za předch. 3 dny)</td><td class="text-right">' + dryAfterRain.length + '</td><td class="text-right">' + fmtCZK(wxAvg(dryAfterRain)) + '</td></tr>';
+    comboHtml += '<tr><td>Sucho po suchu</td><td class="text-right">' + dryAfterDry.length + '</td><td class="text-right">' + fmtCZK(wxAvg(dryAfterDry)) + '</td></tr>';
+    comboHtml += '<tr><td style="color:#ef4444">Zima (&lt;0 \u00B0C) nebo mokro (&gt;2 mm)</td><td class="text-right">' + coldWet.length + '</td><td class="text-right">' + fmtCZK(wxAvg(coldWet)) + '</td></tr>';
+    comboHtml += '</tbody></table>';
+    document.getElementById('anaWeatherComboCard').innerHTML = comboHtml;
+
+    // Top weather days
+    var topWx = warmDryAfterRain.sort(function(a,b){return b.rev-a.rev;}).slice(0,8);
+    var wxTopHtml = '<h3>Nejsilnější dny: teplo + sucho po dešti</h3><table class="data"><thead><tr><th>Datum</th><th>Den</th><th class="text-right">\u00B0C</th><th class="text-right">Srážky předch. 3 dny</th><th class="text-right">Tržby</th></tr></thead><tbody>';
+    topWx.forEach(function(p) { wxTopHtml += '<tr><td>' + p.date + '</td><td>' + DAYS[p.day] + '</td><td class="text-right">' + p.tmax + ' \u00B0C</td><td class="text-right">' + p.p3.toFixed(1) + ' mm</td><td class="text-right bold">' + fmtCZK(p.rev) + '</td></tr>'; });
+    wxTopHtml += '</tbody></table>';
+    if (!topWx.length) wxTopHtml += '<p style="color:#94a3b8;font-size:13px">Nedostatek dat pro toto období.</p>';
+    document.getElementById('anaWeatherTopCard').innerHTML = wxTopHtml;
+
+    // Recommendations
+    function getWeekendPeakSessions(hm) { var max = 0; Object.keys(hm).forEach(function(k) { var parts = k.split('-'); var d = Number(parts[0]); var h = Number(parts[1]); if ((d===0||d===6)&&h>=13&&h<17&&hm[k]>max) max=hm[k]; }); return max; }
+
+    var wdAvg = DAYS_ORDER.slice(0,5).reduce(function(s,d){return s+((byDay[d]?byDay[d].revenue:0)/dayCounts[d]);},0)/5;
+    var weAvg = [6,0].reduce(function(s,d){return s+((byDay[d]?byDay[d].revenue:0)/dayCounts[d]);},0)/2;
+    var weWdRatio = weAvg / (wdAvg || 1);
+    var morningData = dayparts['Dopoledne (10\u201313)']||{s:0,r:0};
+    var afternoonData = dayparts['Odpoledne (13\u201317)']||{s:0,r:0};
+    var eveningData = dayparts['Večer (17+)']||{s:0,r:0};
+    var earlyData = dayparts['Ráno (5\u201310)']||{s:0,r:0};
+    var morningShare = morningData.r/(totalRevenue||1)*100;
+    var eveningShare = eveningData.r/(totalRevenue||1)*100;
+    var earlyShare = earlyData.r/(totalRevenue||1)*100;
+    var morningAvg = morningData.s ? Math.round(morningData.r/morningData.s) : 0;
+    var afternoonAvg = afternoonData.s ? Math.round(afternoonData.r/afternoonData.s) : 0;
+    var wePeakMax = getWeekendPeakSessions(hmData);
+
+    var boxArr = Object.entries(byBox).sort(function(a,b){return b[1].revenue-a[1].revenue;});
+    var bestBox = boxArr[0]; var worstBox = boxArr[boxArr.length-1];
+    var boxImbalance = bestBox && worstBox ? bestBox[1].count/(worstBox[1].count||1) : 1;
+
+    var monthRevPerDay = monthKeys.map(function(m){return Math.round(byMonth[m].revenue/byMonth[m].days.size);});
+    var isGrowing = monthRevPerDay.length >= 2 && monthRevPerDay[monthRevPerDay.length-1] > monthRevPerDay[0];
+    var growthPct = monthRevPerDay.length >= 2 ? Math.round((monthRevPerDay[monthRevPerDay.length-1]/monthRevPerDay[0]-1)*100) : 0;
+    var failRate = data.length ? Math.round((data.length-ok.length)/data.length*100) : 0;
+
+    var recs = [];
+    if (weWdRatio > 1.3) recs.push({ level:'high', title:'Posílit pracovní dny', body:'Víkend generuje '+fmtCZK(Math.round(weAvg))+'/den vs. pracovní dny '+fmtCZK(Math.round(wdAvg))+'/den (poměr '+weWdRatio.toFixed(1)+'x). Pracovní dny mají výrazně nižší vytížení.', impact:'Potenciál +'+fmtCZK(Math.round((weAvg-wdAvg)*0.15*20))+'/měsíc' });
+    if (morningShare < 35 && morningAvg > afternoonAvg * 0.9) recs.push({ level:'high', title:'Využít dopoledne (10–13h)', body:'Dopoledne tvoří jen '+Math.round(morningShare)+' % tržeb, přitom zákazníci dopoledne utrácejí více (průměr '+fmtCZK(morningAvg)+'/session vs. odpoledne '+fmtCZK(afternoonAvg)+').', impact:'Potenciál +'+fmtCZK(Math.round(morningAvg*2*20))+'/měsíc' });
+    if (wePeakMax >= 8) recs.push({ level:'high', title:'Víkendové špičky na hranici kapacity', body:'Víkendové odpoledne dosáhlo max '+wePeakMax+' sessions/hod (při 3 boxech a ~15 min/session je max ~12).', impact:'Vyšší tržba bez navýšení kapacity' });
+    else if (wePeakMax >= 5) recs.push({ level:'medium', title:'Víkendové špičky — monitorovat kapacitu', body:'Víkendové odpoledne dosáhlo max '+wePeakMax+' sessions/hod.', impact:'Sledovat trend' });
+    if (wxPairs.length >= 20 && rTemp > 0.3) { var wxBestAvg = wxAvg(warmDryAfterRain); var wxWorstAvg = wxAvg(coldWet); recs.push({ level: warmDryAfterRain.length>=3?'high':'medium', title:'Komunikace na základě počasí', body:'Korelace teploty a tržeb: r='+rTemp.toFixed(2)+'. Teplý suchý den po dešti = průměr '+fmtCZK(wxBestAvg)+'/den vs. zima/mokro '+fmtCZK(wxWorstAvg)+'/den.', impact:'Nízké náklady, vysoký potenciál' }); }
+    if (isGrowing && growthPct > 15) recs.push({ level:'medium', title:'Sezónní růst — příprava na hlavní sezónu', body:'Tržby na aktivní den vzrostly o '+growthPct+' %. Zajistit plnou funkčnost všech boxů a zásoby chemie.', impact:'Prevence výpadků v nejsilnějším období' });
+    else if (monthRevPerDay.length >= 2 && monthRevPerDay[monthRevPerDay.length-1] < monthRevPerDay[0]*0.85) recs.push({ level:'high', title:'Klesající trend tržeb', body:'Tržby na aktivní den klesají. Prozkoumat příčiny.', impact:'Vyžaduje pozornost' });
+    if (eveningShare < 25) recs.push({ level:'medium', title:'Večerní provoz', body:'Po 17h probíhá jen '+Math.round(eveningShare)+' % tržeb. V letních měsících potenciál na zvýšení.', impact:'Potenciál v letní sezóně' });
+    if (earlyData.s > 10 && earlyShare > 3) recs.push({ level:'medium', title:'Ranní zákazníci (5–10h)', body:'Ranní hodiny již generují '+earlyData.s+' sessions ('+Math.round(earlyShare)+' % tržeb).', impact:'Růstový segment' });
+    if (boxImbalance > 1.8 && boxArr.length >= 2) recs.push({ level:'medium', title:'Nerovnoměrné vytížení boxů', body:bestBox[0]+' má '+bestBox[1].count+' sessions vs. '+worstBox[0]+' jen '+worstBox[1].count+' (poměr '+boxImbalance.toFixed(1)+'x).', impact:'Lepší využití kapacity' });
+    if (failRate > 3) recs.push({ level: failRate>5?'high':'medium', title:'Neúspěšné transakce: '+failRate+' %', body:'Z '+data.length+' transakcí jich '+(data.length-ok.length)+' neproběhlo úspěšně.', impact:'Potenciál +'+fmtCZK(Math.round((data.length-ok.length)*avgPerSession*0.3))+' (30 % zachycení)' });
+
+    recs.sort(function(a,b){return a.level===b.level?0:a.level==='high'?-1:1;});
+    var recHtml = '<ul class="rec-list">';
+    if (recs.length === 0) recHtml += '<li><div class="rec-body">Nedostatek dat pro generování doporučení.</div></li>';
+    recs.forEach(function(r) { recHtml += rec(r.level, r.title, r.body, r.impact); });
+    recHtml += '</ul>';
+    document.getElementById('anaRecsCard').innerHTML = recHtml;
+  }
+
+  function kpi(label, value, detail, cls) { return '<div class="kpi '+cls+'"><div class="lbl">'+label+'</div><div class="val">'+value+'</div><div class="sub">'+detail+'</div></div>'; }
+  function rec(level, title, body, impact) { var impactCls = level==='high'?'impact-high':'impact-medium'; return '<li class="'+level+'"><div class="rec-title">'+title+'</div><div class="rec-body">'+body+'</div><div class="rec-impact '+impactCls+'">'+impact+'</div></li>'; }
+  function median(arr) { var s = arr.slice().sort(function(a,b){return a-b;}); var mid = Math.floor(s.length/2); return s.length%2 ? s[mid] : Math.round((s[mid-1]+s[mid])/2); }
+  function groupByDate(sessions) { var g = {}; sessions.forEach(function(s) { var key = s.time.toISOString().slice(0,10); if (!g[key]) g[key]=[]; g[key].push(s); }); return g; }
+
+  // Auto-load from analyza_data.js
+  if (typeof PRELOADED_ANALYZA !== 'undefined' && PRELOADED_ANALYZA && PRELOADED_ANALYZA.raw) {
+    runAnalysis(PRELOADED_ANALYZA.raw, PRELOADED_ANALYZA.fileName);
+  }
+})();
+
+// Initial status
+updateLandingStatus();
+</script>
+</body>
+</html>
