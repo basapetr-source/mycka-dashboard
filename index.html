@@ -447,7 +447,8 @@ function updateLandingStatus() {
         var cardVal = String(r[colMap['Display Card String']] || '').trim();
         var cardNum = Number(cardVal);
         if (isNaN(cardNum) || cardNum < 1 || cardNum > 1000) continue;
-        rows.push({ holder: String(r[colMap['Holder Name']] || '').trim(), machine: String(r[colMap['Machine Name']] || '').trim(), card: cardVal, amount: amount, date: String(r[colMap['Settlement Time']] || '').trim() });
+        var holderRaw = String(r[colMap['Holder Name']] || '').trim().replace(/s\.\s+r\.\s+o\./gi, 's.r.o.').replace(/a\.\s+s\./gi, 'a.s.').replace(/k\.\s+s\./gi, 'k.s.').replace(/v\.\s+o\.\s+s\./gi, 'v.o.s.');
+        rows.push({ holder: holderRaw, machine: String(r[colMap['Machine Name']] || '').trim(), card: cardVal, amount: amount, date: String(r[colMap['Settlement Time']] || '').trim() });
       }
       if (rows.length === 0) { alert('Soubor neobsahuje zadne transakce.'); return; }
       var dateRange = '';
@@ -982,7 +983,22 @@ function updateLandingStatus() {
     document.getElementById('anaWeatherTopCard').innerHTML = wxTopHtml;
 
     // Recommendations
-    function getWeekendPeakSessions(hm) { var max = 0; Object.keys(hm).forEach(function(k) { var parts = k.split('-'); var d = Number(parts[0]); var h = Number(parts[1]); if ((d===0||d===6)&&h>=13&&h<17&&hm[k]>max) max=hm[k]; }); return max; }
+    function getWeekendPeakDaily(sess) {
+      var byDateHour = {};
+      sess.forEach(function(s) {
+        var d = s.time.getDay();
+        if (d !== 0 && d !== 6) return;
+        var h = s.time.getHours();
+        if (h < 13 || h >= 17) return;
+        var dateStr = s.time.toISOString().slice(0,10);
+        var key = dateStr + '-' + h;
+        if (!byDateHour[key]) byDateHour[key] = { count: 0, date: dateStr };
+        byDateHour[key].count++;
+      });
+      var max = { count: 0, date: '' };
+      Object.values(byDateHour).forEach(function(v) { if (v.count > max.count) max = v; });
+      return max;
+    }
 
     var wdAvg = DAYS_ORDER.slice(0,5).reduce(function(s,d){return s+((byDay[d]?byDay[d].revenue:0)/dayCounts[d]);},0)/5;
     var weAvg = [6,0].reduce(function(s,d){return s+((byDay[d]?byDay[d].revenue:0)/dayCounts[d]);},0)/2;
@@ -996,7 +1012,8 @@ function updateLandingStatus() {
     var earlyShare = earlyData.r/(totalRevenue||1)*100;
     var morningAvg = morningData.s ? Math.round(morningData.r/morningData.s) : 0;
     var afternoonAvg = afternoonData.s ? Math.round(afternoonData.r/afternoonData.s) : 0;
-    var wePeakMax = getWeekendPeakSessions(hmData);
+    var wePeak = getWeekendPeakDaily(sessions);
+    var wePeakMax = wePeak.count;
 
     var boxArr = Object.entries(byBox).sort(function(a,b){return b[1].revenue-a[1].revenue;});
     var bestBox = boxArr[0]; var worstBox = boxArr[boxArr.length-1];
@@ -1010,8 +1027,8 @@ function updateLandingStatus() {
     var recs = [];
     if (weWdRatio > 1.3) recs.push({ level:'high', title:'Posílit pracovní dny', body:'Víkend generuje '+fmtCZK(Math.round(weAvg))+'/den vs. pracovní dny '+fmtCZK(Math.round(wdAvg))+'/den (poměr '+weWdRatio.toFixed(1)+'x). Pracovní dny mají výrazně nižší vytížení.', impact:'Potenciál +'+fmtCZK(Math.round((weAvg-wdAvg)*0.15*20))+'/měsíc' });
     if (morningShare < 35 && morningAvg > afternoonAvg * 0.9) recs.push({ level:'high', title:'Využít dopoledne (10–13h)', body:'Dopoledne tvoří jen '+Math.round(morningShare)+' % tržeb, přitom zákazníci dopoledne utrácejí více (průměr '+fmtCZK(morningAvg)+'/session vs. odpoledne '+fmtCZK(afternoonAvg)+').', impact:'Potenciál +'+fmtCZK(Math.round(morningAvg*2*20))+'/měsíc' });
-    if (wePeakMax >= 8) recs.push({ level:'high', title:'Víkendové špičky na hranici kapacity', body:'Víkendové odpoledne dosáhlo max '+wePeakMax+' sessions/hod (při 3 boxech a ~15 min/session je max ~12).', impact:'Vyšší tržba bez navýšení kapacity' });
-    else if (wePeakMax >= 5) recs.push({ level:'medium', title:'Víkendové špičky — monitorovat kapacitu', body:'Víkendové odpoledne dosáhlo max '+wePeakMax+' sessions/hod.', impact:'Sledovat trend' });
+    if (wePeakMax >= 8) recs.push({ level:'high', title:'Víkendové špičky na hranici kapacity', body:'Víkendové odpoledne dosáhlo max '+wePeakMax+' sessions/hod v jednom dni ('+wePeak.date+') — při 3 boxech a ~15 min/session je max ~12.', impact:'Vyšší tržba bez navýšení kapacity' });
+    else if (wePeakMax >= 5) recs.push({ level:'medium', title:'Víkendové špičky — monitorovat kapacitu', body:'Víkendové odpoledne dosáhlo max '+wePeakMax+' sessions/hod v jednom dni ('+wePeak.date+').', impact:'Sledovat trend' });
     if (wxPairs.length >= 20 && rTemp > 0.3) { var wxBestAvg = wxAvg(warmDryAfterRain); var wxWorstAvg = wxAvg(coldWet); recs.push({ level: warmDryAfterRain.length>=3?'high':'medium', title:'Komunikace na základě počasí', body:'Korelace teploty a tržeb: r='+rTemp.toFixed(2)+'. Teplý suchý den po dešti = průměr '+fmtCZK(wxBestAvg)+'/den vs. zima/mokro '+fmtCZK(wxWorstAvg)+'/den.', impact:'Nízké náklady, vysoký potenciál' }); }
     if (isGrowing && growthPct > 15) recs.push({ level:'medium', title:'Sezónní růst — příprava na hlavní sezónu', body:'Tržby na aktivní den vzrostly o '+growthPct+' %. Zajistit plnou funkčnost všech boxů a zásoby chemie.', impact:'Prevence výpadků v nejsilnějším období' });
     else if (monthRevPerDay.length >= 2 && monthRevPerDay[monthRevPerDay.length-1] < monthRevPerDay[0]*0.85) recs.push({ level:'high', title:'Klesající trend tržeb', body:'Tržby na aktivní den klesají. Prozkoumat příčiny.', impact:'Vyžaduje pozornost' });
