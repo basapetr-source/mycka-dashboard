@@ -238,7 +238,7 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
     <div class="charts">
       <div class="chart-card"><h3>Obrat podle mesice</h3><canvas id="chartMonthly"></canvas></div>
       <div class="chart-card"><h3>Obrat podle automatu</h3><div style="max-width:320px;margin:0 auto"><canvas id="chartMachines"></canvas></div></div>
-      <div class="chart-card full"><h3>Denni obrat</h3><canvas id="chartDaily" height="80"></canvas></div>
+      <div class="chart-card full"><h3>Týdenní trend tržeb</h3><canvas id="chartDaily" height="80"></canvas></div>
     </div>
     <div class="table-card">
       <h3>Prehled zakazniku</h3>
@@ -542,14 +542,23 @@ function updateLandingStatus() {
       options: { responsive: true, plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: function(ctx) { return ctx.label + ': ' + fmtCZK(ctx.parsed) + ' (' + Math.round(ctx.parsed / totalAmount * 100) + '%)'; } } } } }
     });
 
-    // Daily chart
-    var dailyData = {};
-    data.forEach(function(d) { var day = d.date.split(' ')[0]; if (!dailyData[day]) dailyData[day] = 0; dailyData[day] += d.amount; });
-    var dailyEntries = Object.entries(dailyData).sort(function(a, b) { var ap = a[0].split('.'), bp = b[0].split('.'); return new Date(+ap[2], +ap[1]-1, +ap[0]) - new Date(+bp[2], +bp[1]-1, +bp[0]); });
+    // Weekly chart
+    var weeklyData = {};
+    data.forEach(function(d) {
+      var p = d.date.split(' ')[0].split('.');
+      var dt = new Date(+p[2], +p[1]-1, +p[0]);
+      var day = dt.getDay() || 7;
+      var mon = new Date(dt); mon.setDate(dt.getDate() - day + 1);
+      var key = mon.getDate() + '.' + (mon.getMonth()+1) + '.' + mon.getFullYear();
+      if (!weeklyData[key]) weeklyData[key] = 0;
+      weeklyData[key] += d.amount;
+    });
+    var weeklyEntries = Object.entries(weeklyData).sort(function(a, b) { var ap = a[0].split('.'), bp = b[0].split('.'); return new Date(+ap[2], +ap[1]-1, +ap[0]) - new Date(+bp[2], +bp[1]-1, +bp[0]); });
 
+    var weeklyAvg = weeklyEntries.reduce(function(s, e) { return s + e[1]; }, 0) / weeklyEntries.length;
     chartDaily = new Chart(document.getElementById('chartDaily'), {
-      type: 'line', data: { labels: dailyEntries.map(function(e) { return e[0]; }), datasets: [{ label: 'Denni obrat (CZK)', data: dailyEntries.map(function(e) { return e[1]; }), borderColor: '#4361ee', backgroundColor: 'rgba(67,97,238,0.1)', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#4361ee' }] },
-      options: { responsive: true, scales: { y: { beginAtZero: true, title: { display: true, text: 'CZK' } }, x: { ticks: { maxRotation: 45 } } }, plugins: { legend: { display: false } } }
+      type: 'bar', data: { labels: weeklyEntries.map(function(e) { var p = e[0].split('.'); return p[0] + '.' + p[1] + '.'; }), datasets: [{ label: 'Obrat za týden (CZK)', data: weeklyEntries.map(function(e) { return e[1]; }), backgroundColor: weeklyEntries.map(function(e) { return e[1] > weeklyAvg ? '#4361ee' : '#94a3b8'; }), borderRadius: 6 }] },
+      options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { callback: function(v) { return v.toLocaleString('cs-CZ'); } } }, x: { grid: { display: true, color: '#eee' } } }, plugins: { legend: { display: false } } }
     });
 
     // Customer table
