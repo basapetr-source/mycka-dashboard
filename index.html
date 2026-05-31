@@ -313,6 +313,14 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
       </div>
     </div>
     <div class="section">
+      <div class="section-title">Happy hour (Po–Pá 6–10) — dopad na tržby</div>
+      <div class="info-box" id="anaHappyHourInfo"></div>
+      <div class="grid grid-2" style="margin-top:16px">
+        <div class="card"><h3>Podíl ranních tržeb 6–10 na celodenních 6–22 (všední dny, BOXy)</h3><canvas id="anaHhShareChart" height="180"></canvas><p style="font-size:11px;color:#64748b;margin-top:8px;">Modré sloupce = měsíce s happy hour (od 24.4.2026), šedé = před zavedením.</p></div>
+        <div class="card" id="anaHhCompareCard"></div>
+      </div>
+    </div>
+    <div class="section">
       <div class="section-title">Nejlepší a nejhorší dny</div>
       <div class="grid grid-2">
         <div class="card" id="anaTopDaysCard"></div>
@@ -857,6 +865,81 @@ function updateLandingStatus() {
       options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: function(v){return v.toLocaleString('cs-CZ');} } } } }
     }));
 
+    // ===== HAPPY HOUR ANALÝZA =====
+    // Happy hour spuštěn 24.4.2026: Po–Pá 6:00–10:00 → za jeden impuls 60 s mytí místo 45 s.
+    // Týká se jen mycích BOXů a všedních dnů. Před/po se porovnává na stejně dlouhém období.
+    var HH_START = new Date(2026, 3, 24); // 24.4.2026
+    var hhBox = sessions.filter(function(s) { var d = s.time.getDay(); return s.machine.indexOf('BOX') === 0 && d >= 1 && d <= 5; });
+
+    // (1) Měsíční podíl ranních tržeb 6–10 na celodenních 6–22 (po 22 i před 6 je provoz ~0)
+    var hhMonth = {};
+    hhBox.forEach(function(s) {
+      var h = s.time.getHours(); if (h < 6 || h >= 22) return;
+      var k = s.time.getFullYear() + '-' + String(s.time.getMonth()+1).padStart(2,'0');
+      if (!hhMonth[k]) hhMonth[k] = { m: 0, d: 0 };
+      hhMonth[k].d += s.total; if (h < 10) hhMonth[k].m += s.total;
+    });
+    var hhKeys = Object.keys(hhMonth).sort();
+    charts.push(new Chart(document.getElementById('anaHhShareChart'), {
+      type: 'bar',
+      data: { labels: hhKeys, datasets: [{ label: 'Podíl rána 6–10', data: hhKeys.map(function(k) { return hhMonth[k].d ? Math.round(100*hhMonth[k].m/hhMonth[k].d) : 0; }),
+        backgroundColor: hhKeys.map(function(k) { return k >= '2026-04' ? '#4361ee' : '#94a3b8'; }), borderRadius: 4 }] },
+      options: { plugins: { legend: { display: false }, tooltip: { callbacks: { label: function(c){ return c.parsed.y + ' %'; } } } }, scales: { y: { beginAtZero: true, ticks: { callback: function(v){ return v + ' %'; } } } } }
+    }));
+
+    // (2) Symetrické okno před/po (stejně dlouhé), normalizováno na aktivní všední den
+    var hhMaxT = Math.max.apply(null, sessions.map(function(s) { return s.time.getTime(); }));
+    var hhAfterSpan = Math.max(1, Math.ceil((hhMaxT - HH_START.getTime()) / 86400000) + 1);
+    var hhBeforeStart = new Date(HH_START.getTime() - hhAfterSpan * 86400000);
+    var hhBefore = hhBox.filter(function(s) { return s.time >= hhBeforeStart && s.time < HH_START; });
+    var hhAfter = hhBox.filter(function(s) { return s.time >= HH_START; });
+    var hhActiveWD = function(list) { var set = {}; list.forEach(function(x) { set[x.time.toISOString().slice(0,10)] = 1; }); return Object.keys(set).length; };
+    var hhBDays = hhActiveWD(hhBefore), hhADays = hhActiveWD(hhAfter);
+    var hhInWin = function(s, lo, hi) { var h = s.time.getHours(); return h >= lo && h < hi; };
+    var hhMetr = function(list, days) { var rev = 0, taps = 0; list.forEach(function(s) { rev += s.total; taps += s.taps; });
+      return { revD: days ? rev/days : 0, sesD: days ? list.length/days : 0, czk: list.length ? rev/list.length : 0, tap: list.length ? taps/list.length : 0 }; };
+    var hhCell = function(b, a, dec, suf) { var pct = b ? Math.round((a-b)/b*100) : null;
+      var ps = pct === null ? '' : (pct >= 0 ? ' <span style="color:#10b981">(+'+pct+'%)</span>' : ' <span style="color:#ef4444">('+pct+'%)</span>');
+      return b.toFixed(dec) + (suf||'') + ' → <strong>' + a.toFixed(dec) + (suf||'') + '</strong>' + ps; };
+
+    var hhInfo = document.getElementById('anaHappyHourInfo');
+    hhInfo.style.display = 'block';
+    if (hhAfter.length && hhBefore.length) {
+      var hhWins = [{n:'6–10 (happy hour)',lo:6,hi:10,hot:true},{n:'10–14',lo:10,hi:14},{n:'14–18',lo:14,hi:18},{n:'celý den 6–22',lo:6,hi:22}];
+      var cHtml = '<h3>Před vs. po zavedení (Po–Pá, BOXy)</h3>'
+        + '<p style="font-size:12px;color:#64748b;margin-bottom:10px;">Srovnání stejně dlouhého období ' + hhAfterSpan + ' dní před a po 24.4.2026 (formát „před → po").</p>'
+        + '<table class="data"><thead><tr><th>Okno</th><th class="text-right">Sessions/den</th><th class="text-right">Tržba/den</th><th class="text-right">Kč/session</th><th class="text-right">Impulsů/session</th></tr></thead><tbody>';
+      hhWins.forEach(function(w) {
+        var b = hhMetr(hhBefore.filter(function(s){ return hhInWin(s,w.lo,w.hi); }), hhBDays);
+        var a = hhMetr(hhAfter.filter(function(s){ return hhInWin(s,w.lo,w.hi); }), hhADays);
+        cHtml += '<tr' + (w.hot ? ' style="background:#eff6ff"' : '') + '><td class="bold">' + w.n + '</td>'
+          + '<td class="text-right">' + hhCell(b.sesD, a.sesD, 1, '') + '</td>'
+          + '<td class="text-right">' + hhCell(b.revD, a.revD, 0, ' Kč') + '</td>'
+          + '<td class="text-right">' + hhCell(b.czk, a.czk, 0, ' Kč') + '</td>'
+          + '<td class="text-right">' + hhCell(b.tap, a.tap, 2, '') + '</td></tr>';
+      });
+      cHtml += '</tbody></table>';
+      document.getElementById('anaHhCompareCard').innerHTML = cHtml;
+
+      var hhShr = function(list) { var d = 0, m = 0; list.forEach(function(s) { var h = s.time.getHours(); if (h >= 6 && h < 22) { d += s.total; if (h < 10) m += s.total; } }); return d ? Math.round(100*m/d) : 0; };
+      var sB = hhShr(hhBefore), sA = hhShr(hhAfter);
+      var hhMornB = hhMetr(hhBefore.filter(function(s){ return hhInWin(s,6,10); }), hhBDays);
+      var hhMornA = hhMetr(hhAfter.filter(function(s){ return hhInWin(s,6,10); }), hhADays);
+      var hhDayB = hhMetr(hhBefore.filter(function(s){ return hhInWin(s,6,22); }), hhBDays);
+      var hhDayA = hhMetr(hhAfter.filter(function(s){ return hhInWin(s,6,22); }), hhADays);
+      var gMorn = hhMornB.sesD ? Math.round((hhMornA.sesD-hhMornB.sesD)/hhMornB.sesD*100) : 0;
+      var gDay = hhDayB.sesD ? Math.round((hhDayA.sesD-hhDayB.sesD)/hhDayB.sesD*100) : 0;
+      hhInfo.innerHTML = '<div class="info-title">⏰ Happy hour (od 24.4.2026)</div>'
+        + '<p>Po–Pá 6:00–10:00 dostane zákazník za jeden impuls <strong>60 s</strong> mytí místo obvyklých <strong>45 s</strong>. Analýza zahrnuje jen mycí <strong>BOXy</strong> a <strong>všední dny</strong>; před/po se porovnává na stejně dlouhém období (' + hhAfterSpan + ' dní).</p>'
+        + '<div class="info-example">'
+        + '<strong>Co je v datech vidět:</strong> Podíl ranních tržeb (6–10) na celodenních (6–22) se posunul z <strong>' + sB + ' %</strong> na <strong>' + sA + ' %</strong>. '
+        + 'Počet ranních mytí na všední den ' + (gMorn >= 0 ? 'vzrostl o ' : 'klesl o ') + '<strong>' + Math.abs(gMorn) + ' %</strong>, zatímco celý den 6–22 ' + (gDay >= 0 ? '+' : '') + gDay + ' %. '
+        + (gMorn > gDay + 15 ? 'Poptávka se tedy citelně <strong>přesunula do rána</strong> — výhodnější ranní okno přitáhlo zákazníky do dříve slabšího času.' : 'Ranní okno ' + (gMorn > gDay ? 'roste rychleji než zbytek dne' : 'nevybočuje ze zbytku dne') + '.')
+        + '</div>';
+    } else {
+      hhInfo.innerHTML = '<div class="info-title">⏰ Happy hour</div><p>V načtených datech zatím není dost období po 24.4.2026 pro srovnání před/po.</p>';
+    }
+
     // Weather data
     var WEATHER_DATA = {
 '2025-12-01':{tmax:2.5,prec:0.4},'2025-12-02':{tmax:3.3,prec:0},'2025-12-03':{tmax:3.2,prec:0.1},'2025-12-04':{tmax:5.2,prec:0},
@@ -901,7 +984,10 @@ function updateLandingStatus() {
 '2026-05-06':{tmax:23.4,prec:9.3},'2026-05-07':{tmax:19,prec:7.9},'2026-05-08':{tmax:15.1,prec:0.1},'2026-05-09':{tmax:16.5,prec:0},
 '2026-05-10':{tmax:21.2,prec:0},'2026-05-11':{tmax:22,prec:5.8},'2026-05-12':{tmax:12.6,prec:3.6},'2026-05-13':{tmax:15.4,prec:0.8},
 '2026-05-14':{tmax:16.6,prec:0.7},'2026-05-15':{tmax:16.7,prec:1},'2026-05-16':{tmax:15,prec:6.6},'2026-05-17':{tmax:17.1,prec:0},
-'2026-05-18':{tmax:20,prec:0},'2026-05-19':{tmax:22.4,prec:1}
+'2026-05-18':{tmax:20,prec:0},'2026-05-19':{tmax:22.4,prec:1},'2026-05-20':{tmax:23.1,prec:0.1},'2026-05-21':{tmax:22.2,prec:0.6},
+'2026-05-22':{tmax:25.3,prec:0},'2026-05-23':{tmax:27.7,prec:0},'2026-05-24':{tmax:30.5,prec:0},'2026-05-25':{tmax:28.5,prec:0},
+'2026-05-26':{tmax:30.6,prec:0},'2026-05-27':{tmax:27.8,prec:0},'2026-05-28':{tmax:22.9,prec:0},'2026-05-29':{tmax:26.6,prec:0},
+'2026-05-30':{tmax:27.1,prec:0.7}
     };
 
     function precLastN(dateStr, n) {
