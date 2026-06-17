@@ -156,6 +156,22 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 #anaSection .impact-medium { background: #fffbeb; color: #d97706; }
 #anaSection .print-btn { background: #4361ee; color: #fff; border: none; border-radius: 8px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }
 #anaSection .print-btn:hover { background: #3451d1; }
+#anaSection .month-filter { background: #fff; border-radius: 12px; padding: 16px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04); margin-bottom: 24px; }
+#anaSection .mf-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+#anaSection .mf-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #64748b; }
+#anaSection .mf-actions { display: flex; gap: 8px; }
+#anaSection .mf-btn { background: #f1f5f9; border: 1px solid #e2e8f0; color: #1e293b; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 7px; cursor: pointer; transition: all 0.15s; }
+#anaSection .mf-btn:hover { background: #e2e8f0; }
+#anaSection .mf-years { display: flex; flex-wrap: wrap; gap: 20px; }
+#anaSection .mf-year { display: flex; flex-direction: column; gap: 8px; }
+#anaSection .mf-year-toggle { align-self: flex-start; background: transparent; border: none; font-size: 13px; font-weight: 800; color: #1e293b; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+#anaSection .mf-year-toggle:hover { background: #f1f5f9; }
+#anaSection .mf-year-toggle.partial { color: #4361ee; }
+#anaSection .mf-months { display: flex; flex-wrap: wrap; gap: 6px; }
+#anaSection .mf-chip { background: #f1f5f9; border: 1px solid #e2e8f0; color: #64748b; font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 7px; cursor: pointer; transition: all 0.15s; min-width: 44px; }
+#anaSection .mf-chip:hover { border-color: #4361ee; }
+#anaSection .mf-chip.active { background: #4361ee; border-color: #4361ee; color: #fff; }
+#anaSection .mf-warn { color: #ef4444; font-size: 12px; font-weight: 600; margin-top: 10px; }
 @media (max-width: 900px) {
   #anaSection .grid-2, #anaSection .grid-3 { grid-template-columns: 1fr; }
   #anaSection .header { padding: 20px; }
@@ -164,6 +180,7 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
   .back-btn { display: none !important; }
   #landing { display: none !important; }
   #anaSection .header { break-after: avoid; }
+  #anaSection .month-filter { display: none !important; }
 }
 </style>
 </head>
@@ -286,6 +303,7 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
   </div>
 
   <div id="anaReport">
+    <div class="month-filter" id="anaMonthFilter" style="display:none;"></div>
     <div class="kpi-row" id="anaKpiRow"></div>
     <div class="info-box" id="anaSessionInfoBox" style="display:none;"></div>
     <div class="section"><div class="section-title">Týdenní trend tržeb</div><div class="card full"><canvas id="anaWeeklyChart" height="70"></canvas></div></div>
@@ -622,7 +640,7 @@ function updateLandingStatus() {
       try {
         var wb = XLSX.read(e.target.result, {type:'array'});
         var raw = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1});
-        runAnalysis(raw, file.name);
+        loadData(raw, file.name);
       } catch(err) { alert('Chyba při zpracování souboru: ' + err.message); }
     };
     reader.readAsArrayBuffer(file);
@@ -643,11 +661,110 @@ function updateLandingStatus() {
   var charts = [];
   function destroyCharts() { charts.forEach(function(c) { c.destroy(); }); charts = []; }
 
+  // ===== MONTH / YEAR FILTER =====
+  var FULL_RAW = null, FULL_FILE = '', MONTH_DATE_COL = -1;
+  var MONTH_ABBR = ['Led','Úno','Bře','Dub','Kvě','Čvn','Čvc','Srp','Zář','Říj','Lis','Pro'];
+
+  function loadData(raw, filename) {
+    FULL_RAW = raw; FULL_FILE = filename || '';
+    var headers = raw[1] || [];
+    MONTH_DATE_COL = headers.findIndex(function(h) { return h && h.toString().trim() === 'Machine Authorization Time'; });
+    var monthsSet = new Set();
+    if (MONTH_DATE_COL !== -1) {
+      for (var i = 2; i < raw.length; i++) {
+        var r = raw[i]; if (!r) continue;
+        var t = parseDate(r[MONTH_DATE_COL]); if (!t) continue;
+        monthsSet.add(t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0'));
+      }
+    }
+    buildMonthFilterUI(Array.from(monthsSet).sort());
+    applyMonthFilter();
+  }
+  window.anaRunAnalysis = loadData;
+
+  function buildMonthFilterUI(months) {
+    var el = document.getElementById('anaMonthFilter');
+    if (!el) return;
+    if (months.length === 0) { el.style.display = 'none'; return; }
+    var byYear = {};
+    months.forEach(function(ym) { var p = ym.split('-'); (byYear[p[0]] = byYear[p[0]] || []).push(p[1]); });
+    var years = Object.keys(byYear).sort();
+    var html = '<div class="mf-head"><span class="mf-title">Filtr období</span>'
+      + '<div class="mf-actions"><button class="mf-btn" data-act="all">Vše</button>'
+      + '<button class="mf-btn" data-act="none">Zrušit</button></div></div><div class="mf-years">';
+    years.forEach(function(y) {
+      html += '<div class="mf-year"><button class="mf-year-toggle" data-year="' + y + '">' + y + '</button><div class="mf-months">';
+      byYear[y].sort().forEach(function(m) {
+        html += '<button class="mf-chip active" data-ym="' + y + '-' + m + '">' + MONTH_ABBR[+m - 1] + '</button>';
+      });
+      html += '</div></div>';
+    });
+    html += '</div><div class="mf-warn" style="display:none">Vyberte alespoň jeden měsíc.</div>';
+    el.innerHTML = html;
+    el.style.display = 'block';
+    if (!el.dataset.wired) { el.addEventListener('click', onMonthFilterClick); el.dataset.wired = '1'; }
+    updateYearToggles();
+  }
+
+  function onMonthFilterClick(e) {
+    var el = document.getElementById('anaMonthFilter');
+    var chip = e.target.closest('.mf-chip');
+    var yt = e.target.closest('.mf-year-toggle');
+    var act = e.target.closest('.mf-btn');
+    if (chip) { chip.classList.toggle('active'); }
+    else if (yt) {
+      var chips = el.querySelectorAll('.mf-chip[data-ym^="' + yt.dataset.year + '-"]');
+      var allOn = Array.prototype.every.call(chips, function(c) { return c.classList.contains('active'); });
+      chips.forEach(function(c) { c.classList.toggle('active', !allOn); });
+    } else if (act) {
+      el.querySelectorAll('.mf-chip').forEach(function(c) { c.classList.toggle('active', act.dataset.act === 'all'); });
+    } else { return; }
+    applyMonthFilter();
+  }
+
+  function updateYearToggles() {
+    var el = document.getElementById('anaMonthFilter'); if (!el) return;
+    el.querySelectorAll('.mf-year-toggle').forEach(function(yt) {
+      var chips = el.querySelectorAll('.mf-chip[data-ym^="' + yt.dataset.year + '-"]');
+      var on = Array.prototype.filter.call(chips, function(c) { return c.classList.contains('active'); }).length;
+      yt.classList.toggle('partial', on > 0 && on < chips.length);
+    });
+  }
+
+  function getSelectedMonths() {
+    var el = document.getElementById('anaMonthFilter'); if (!el) return [];
+    return Array.prototype.map.call(el.querySelectorAll('.mf-chip.active'), function(c) { return c.dataset.ym; });
+  }
+
+  function applyMonthFilter() {
+    updateYearToggles();
+    var el = document.getElementById('anaMonthFilter');
+    var warn = el ? el.querySelector('.mf-warn') : null;
+    var selected = getSelectedMonths();
+    if (!FULL_RAW) return;
+    if (selected.length === 0) { if (warn) warn.style.display = 'block'; return; }
+    if (warn) warn.style.display = 'none';
+    var total = el ? el.querySelectorAll('.mf-chip').length : 0;
+    var dataset;
+    if (selected.length === total || MONTH_DATE_COL === -1) {
+      dataset = FULL_RAW;
+    } else {
+      var sel = new Set(selected);
+      dataset = [FULL_RAW[0], FULL_RAW[1]];
+      for (var i = 2; i < FULL_RAW.length; i++) {
+        var r = FULL_RAW[i]; if (!r) continue;
+        var t = parseDate(r[MONTH_DATE_COL]); if (!t) continue;
+        var ym = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0');
+        if (sel.has(ym)) dataset.push(r);
+      }
+    }
+    runAnalysis(dataset, FULL_FILE);
+  }
+
   function runAnalysis(raw, filename) {
     try { _runAnalysis(raw, filename); }
     catch(err) { alert('Chyba v analýze: ' + err.message + '\n' + err.stack); }
   }
-  window.anaRunAnalysis = runAnalysis;
 
   function _runAnalysis(raw, filename) {
     destroyCharts();
@@ -684,6 +801,17 @@ function updateLandingStatus() {
         i = j;
       }
     });
+
+    if (sessions.length === 0) {
+      document.getElementById('anaWelcome').style.display = 'none';
+      document.getElementById('anaReport').style.display = 'block';
+      document.getElementById('anaPrintBtn').style.display = '';
+      document.getElementById('anaHeaderUpload').classList.add('loaded');
+      document.getElementById('anaDateRange').innerHTML = 'Žádná úspěšná data pro vybrané období — upravte filtr.';
+      document.getElementById('anaKpiRow').innerHTML = '';
+      document.getElementById('anaSessionInfoBox').style.display = 'none';
+      return;
+    }
 
     var times = sessions.map(function(s) { return s.time; }).sort(function(a,b) { return a-b; });
     var minDate = times[0], maxDate = times[times.length-1];
@@ -1165,7 +1293,7 @@ function updateLandingStatus() {
 
   // Auto-load from analyza_data.js
   if (typeof PRELOADED_ANALYZA !== 'undefined' && PRELOADED_ANALYZA && PRELOADED_ANALYZA.raw) {
-    runAnalysis(PRELOADED_ANALYZA.raw, PRELOADED_ANALYZA.fileName);
+    loadData(PRELOADED_ANALYZA.raw, PRELOADED_ANALYZA.fileName);
   }
 })();
 
