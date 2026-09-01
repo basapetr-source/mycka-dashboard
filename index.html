@@ -419,9 +419,11 @@ function updateLandingStatus() {
   function fmtCZK(n) { return n.toLocaleString('cs-CZ') + ' Kc'; }
   function escapeHtml(str) { var div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
 
+  // Mapování karet: 1–66 = garaz, 67–150 = firma; výjimka: karta 79 = garaz
   var CARD_TYPES = {};
   for (var i = 1; i <= 66; i++) CARD_TYPES[String(i)] = 'garaz';
-  for (var i = 67; i <= 100; i++) CARD_TYPES[String(i)] = 'firma';
+  for (var i = 67; i <= 150; i++) CARD_TYPES[String(i)] = 'firma';
+  CARD_TYPES['79'] = 'garaz';
   function getCardType(card) { return CARD_TYPES[card] || null; }
   function typeBadge(type) {
     if (type === 'firma') return '<span class="badge badge-firma">Firma</span>';
@@ -1130,7 +1132,15 @@ function updateLandingStatus() {
 '2026-07-17':{tmax:31.8,prec:3.7},'2026-07-18':{tmax:27.4,prec:1.2},'2026-07-19':{tmax:21.9,prec:3.6},'2026-07-20':{tmax:22.2,prec:0.2},
 '2026-07-21':{tmax:22.6,prec:0.1},'2026-07-22':{tmax:23.8,prec:0.2},'2026-07-23':{tmax:20.7,prec:2},'2026-07-24':{tmax:24.1,prec:0.2},
 '2026-07-25':{tmax:29.7,prec:0},'2026-07-26':{tmax:31.3,prec:0},'2026-07-27':{tmax:24.4,prec:2},'2026-07-28':{tmax:27.5,prec:0},
-'2026-07-29':{tmax:32.4,prec:0},'2026-07-30':{tmax:37.2,prec:0}
+'2026-07-29':{tmax:32.4,prec:0},'2026-07-30':{tmax:37.2,prec:0},'2026-07-31':{tmax:36.6,prec:0.5},'2026-08-01':{tmax:30.5,prec:3},
+'2026-08-02':{tmax:28.5,prec:0},'2026-08-03':{tmax:34.8,prec:0.1},'2026-08-04':{tmax:38.3,prec:0.4},'2026-08-05':{tmax:35.7,prec:3.1},
+'2026-08-06':{tmax:31.4,prec:3.5},'2026-08-07':{tmax:27.2,prec:0},'2026-08-08':{tmax:27.5,prec:0},'2026-08-09':{tmax:31.7,prec:0},
+'2026-08-10':{tmax:35.3,prec:0},'2026-08-11':{tmax:26.3,prec:0},'2026-08-12':{tmax:25.9,prec:0},'2026-08-13':{tmax:28.7,prec:0},
+'2026-08-14':{tmax:31.3,prec:0},'2026-08-15':{tmax:34.7,prec:0},'2026-08-16':{tmax:28.9,prec:0},'2026-08-17':{tmax:26.9,prec:7.1},
+'2026-08-18':{tmax:20.5,prec:3.7},'2026-08-19':{tmax:26.5,prec:1.2},'2026-08-20':{tmax:27.9,prec:1.5},'2026-08-21':{tmax:26.9,prec:33.2},
+'2026-08-22':{tmax:19.6,prec:14.4},'2026-08-23':{tmax:20.4,prec:0.2},'2026-08-24':{tmax:21.4,prec:0},'2026-08-25':{tmax:22,prec:0.1},
+'2026-08-26':{tmax:22.7,prec:1.8},'2026-08-27':{tmax:27.7,prec:0},'2026-08-28':{tmax:29.9,prec:1.1},'2026-08-29':{tmax:24.2,prec:5.8},
+'2026-08-30':{tmax:26.9,prec:0.5},'2026-08-31':{tmax:24.1,prec:5.4}
     };
 
     function precLastN(dateStr, n) {
