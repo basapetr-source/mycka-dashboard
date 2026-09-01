@@ -656,6 +656,15 @@ function updateLandingStatus() {
     return new Date(+m[3], m[2]-1, +m[1], +m[4], +m[5], +m[6]);
   }
   function fmtDate(d) { return d.toLocaleDateString('cs-CZ'); }
+  // Klic dne v LOKALNIM case. toISOString() prevadi do UTC, takze transakce
+  // po pulnoci (Praha = UTC+1/+2) spadla o den zpet — jedna transakce z pondeli
+  // 10. 8. 2026 00:xx tak vyrobila falesny tydenni sloupec "9. 8.".
+  function dateKey(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+  // Opak: "YYYY-MM-DD" -> lokalni Date (new Date(str) parsuje jako UTC).
+  function dateFromKey(s) { var p = String(s).split('-'); return new Date(+p[0], +p[1]-1, +p[2]); }
+
   function fmtCZK(n) { return n.toLocaleString('cs-CZ') + ' Kč'; }
   var DAYS = ['Ne','Po','Út','St','Čt','Pá','So'];
   var DAYS_ORDER = [1,2,3,4,5,6,0];
@@ -822,7 +831,7 @@ function updateLandingStatus() {
     var totalRevenue = sessions.reduce(function(a,s) { return a + s.total; }, 0);
     var avgPerSession = Math.round(totalRevenue / sessions.length);
     var uniqueCards = new Set(sessions.map(function(s) { return s.card; })).size;
-    var activeDays = new Set(sessions.map(function(s) { return s.time.toISOString().slice(0,10); })).size;
+    var activeDays = new Set(sessions.map(function(s) { return dateKey(s.time); })).size;
     var avgPerDay = Math.round(totalRevenue / activeDays);
     var multiTapSessions = sessions.filter(function(s) { return s.taps > 1; });
     var singleTapSessions = sessions.filter(function(s) { return s.taps === 1; });
@@ -862,10 +871,10 @@ function updateLandingStatus() {
 
     // Weekly trend
     var byWeek = {};
-    sessions.forEach(function(s) { var d = s.time.getDay() || 7; var mon = new Date(s.time); mon.setDate(s.time.getDate() - d + 1); var key = mon.toISOString().slice(0,10); if (!byWeek[key]) byWeek[key] = {revenue:0, count:0}; byWeek[key].revenue += s.total; byWeek[key].count++; });
+    sessions.forEach(function(s) { var d = s.time.getDay() || 7; var mon = new Date(s.time); mon.setDate(s.time.getDate() - d + 1); var key = dateKey(mon); if (!byWeek[key]) byWeek[key] = {revenue:0, count:0}; byWeek[key].revenue += s.total; byWeek[key].count++; });
     var weekKeys = Object.keys(byWeek).sort();
     charts.push(new Chart(document.getElementById('anaWeeklyChart'), {
-      type: 'bar', data: { labels: weekKeys.map(function(w) { var d = new Date(w); return d.getDate() + '.' + (d.getMonth()+1) + '.'; }), datasets: [{ label: 'Tržby (Kč)', data: weekKeys.map(function(w) { return byWeek[w].revenue; }), backgroundColor: weekKeys.map(function(w) { return byWeek[w].revenue > totalRevenue/weekKeys.length ? '#4361ee' : '#94a3b8'; }), borderRadius: 6 }] },
+      type: 'bar', data: { labels: weekKeys.map(function(w) { var d = dateFromKey(w); return d.getDate() + '.' + (d.getMonth()+1) + '.'; }), datasets: [{ label: 'Tržby (Kč)', data: weekKeys.map(function(w) { return byWeek[w].revenue; }), backgroundColor: weekKeys.map(function(w) { return byWeek[w].revenue > totalRevenue/weekKeys.length ? '#4361ee' : '#94a3b8'; }), borderRadius: 6 }] },
       options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: function(v) { return v.toLocaleString('cs-CZ'); } } } } }
     }));
 
@@ -976,7 +985,7 @@ function updateLandingStatus() {
 
     // Monthly table
     var byMonth = {};
-    sessions.forEach(function(s) { var key = s.time.getFullYear() + '-' + String(s.time.getMonth()+1).padStart(2,'0'); if (!byMonth[key]) byMonth[key] = {revenue:0, count:0, days: new Set()}; byMonth[key].revenue += s.total; byMonth[key].count++; byMonth[key].days.add(s.time.toISOString().slice(0,10)); });
+    sessions.forEach(function(s) { var key = s.time.getFullYear() + '-' + String(s.time.getMonth()+1).padStart(2,'0'); if (!byMonth[key]) byMonth[key] = {revenue:0, count:0, days: new Set()}; byMonth[key].revenue += s.total; byMonth[key].count++; byMonth[key].days.add(dateKey(s.time)); });
     var monthKeys = Object.keys(byMonth).sort();
     var mHtml = '<h3>Měsíční přehled</h3><table class="data"><thead><tr><th>Měsíc</th><th class="text-right">Sessions</th><th class="text-right">Tržby</th><th class="text-right">Kč/den</th><th class="text-right">Změna</th></tr></thead><tbody>';
     monthKeys.forEach(function(m,i) {
@@ -1023,7 +1032,7 @@ function updateLandingStatus() {
     var hhBeforeStart = new Date(HH_START.getTime() - hhAfterSpan * 86400000);
     var hhBefore = hhBox.filter(function(s) { return s.time >= hhBeforeStart && s.time < HH_START; });
     var hhAfter = hhBox.filter(function(s) { return s.time >= HH_START; });
-    var hhActiveWD = function(list) { var set = {}; list.forEach(function(x) { set[x.time.toISOString().slice(0,10)] = 1; }); return Object.keys(set).length; };
+    var hhActiveWD = function(list) { var set = {}; list.forEach(function(x) { set[dateKey(x.time)] = 1; }); return Object.keys(set).length; };
     var hhBDays = hhActiveWD(hhBefore), hhADays = hhActiveWD(hhAfter);
     var hhInWin = function(s, lo, hi) { var h = s.time.getHours(); return h >= lo && h < hi; };
     var hhMetr = function(list, days) { var rev = 0, taps = 0; list.forEach(function(s) { rev += s.total; taps += s.taps; });
@@ -1144,8 +1153,8 @@ function updateLandingStatus() {
     };
 
     function precLastN(dateStr, n) {
-      var d = new Date(dateStr); var total = 0;
-      for (var i = 1; i <= n; i++) { var prev = new Date(d); prev.setDate(d.getDate() - i); var key = prev.toISOString().slice(0, 10); if (WEATHER_DATA[key]) total += WEATHER_DATA[key].prec; }
+      var d = dateFromKey(dateStr); var total = 0;
+      for (var i = 1; i <= n; i++) { var prev = new Date(d); prev.setDate(d.getDate() - i); var key = dateKey(prev); if (WEATHER_DATA[key]) total += WEATHER_DATA[key].prec; }
       return total;
     }
 
@@ -1252,7 +1261,7 @@ function updateLandingStatus() {
         if (d !== 0 && d !== 6) return;
         var h = s.time.getHours();
         if (h < 13 || h >= 17) return;
-        var dateStr = s.time.toISOString().slice(0,10);
+        var dateStr = dateKey(s.time);
         var key = dateStr + '-' + h;
         if (!byDateHour[key]) byDateHour[key] = { count: 0, date: dateStr };
         byDateHour[key].count++;
@@ -1310,7 +1319,7 @@ function updateLandingStatus() {
   function kpi(label, value, detail, cls) { return '<div class="kpi '+cls+'"><div class="lbl">'+label+'</div><div class="val">'+value+'</div><div class="sub">'+detail+'</div></div>'; }
   function rec(level, title, body, impact) { var impactCls = level==='high'?'impact-high':'impact-medium'; return '<li class="'+level+'"><div class="rec-title">'+title+'</div><div class="rec-body">'+body+'</div><div class="rec-impact '+impactCls+'">'+impact+'</div></li>'; }
   function median(arr) { var s = arr.slice().sort(function(a,b){return a-b;}); var mid = Math.floor(s.length/2); return s.length%2 ? s[mid] : Math.round((s[mid-1]+s[mid])/2); }
-  function groupByDate(sessions) { var g = {}; sessions.forEach(function(s) { var key = s.time.toISOString().slice(0,10); if (!g[key]) g[key]=[]; g[key].push(s); }); return g; }
+  function groupByDate(sessions) { var g = {}; sessions.forEach(function(s) { var key = dateKey(s.time); if (!g[key]) g[key]=[]; g[key].push(s); }); return g; }
 
   // Auto-load from analyza_data.js
   if (typeof PRELOADED_ANALYZA !== 'undefined' && PRELOADED_ANALYZA && PRELOADED_ANALYZA.raw) {
