@@ -89,10 +89,27 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
 #dashSection .filter-btn.active { background: #4361ee; color: #fff; border-color: #4361ee; }
 #dashSection .filter-btn.active-firma { background: #1967d2; color: #fff; border-color: #1967d2; }
 #dashSection .filter-btn.active-garaz { background: #b45309; color: #fff; border-color: #b45309; }
+#dashSection .month-filter { background: #fff; border-radius: 12px; padding: 16px 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); margin: 16px 32px 0; }
+#dashSection .mf-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+#dashSection .mf-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #64748b; }
+#dashSection .mf-actions { display: flex; gap: 8px; }
+#dashSection .mf-btn { background: #f1f5f9; border: 1px solid #e2e8f0; color: #1e293b; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 7px; cursor: pointer; transition: all 0.15s; }
+#dashSection .mf-btn:hover { background: #e2e8f0; }
+#dashSection .mf-years { display: flex; flex-wrap: wrap; gap: 20px; }
+#dashSection .mf-year { display: flex; flex-direction: column; gap: 8px; }
+#dashSection .mf-year-toggle { align-self: flex-start; background: transparent; border: none; font-size: 13px; font-weight: 800; color: #1e293b; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+#dashSection .mf-year-toggle:hover { background: #f1f5f9; }
+#dashSection .mf-year-toggle.partial { color: #4361ee; }
+#dashSection .mf-months { display: flex; flex-wrap: wrap; gap: 6px; }
+#dashSection .mf-chip { background: #f1f5f9; border: 1px solid #e2e8f0; color: #64748b; font-size: 12px; font-weight: 600; padding: 5px 11px; border-radius: 7px; cursor: pointer; transition: all 0.15s; min-width: 44px; }
+#dashSection .mf-chip:hover { border-color: #4361ee; }
+#dashSection .mf-chip.active { background: #4361ee; border-color: #4361ee; color: #fff; }
+#dashSection .mf-warn { color: #ef4444; font-size: 12px; font-weight: 600; margin-top: 10px; }
 @media (max-width: 768px) {
   #dashSection .charts { grid-template-columns: 1fr; }
   #dashSection .kpi-row { grid-template-columns: 1fr 1fr; }
   #dashSection .header, #dashSection .kpi-row, #dashSection .charts, #dashSection .table-card { padding-left: 16px; padding-right: 16px; }
+  #dashSection .month-filter { margin-left: 16px; margin-right: 16px; }
 }
 
 /* ============================== */
@@ -181,6 +198,7 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
   #landing { display: none !important; }
   #anaSection .header { break-after: avoid; }
   #anaSection .month-filter { display: none !important; }
+  #dashSection .month-filter { display: none !important; }
 }
 </style>
 </head>
@@ -244,6 +262,7 @@ body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background
       <button class="filter-btn" data-filter="firma">Firma</button>
       <button class="filter-btn" data-filter="garaz">Garaz</button>
     </div>
+    <div class="month-filter" id="dashMonthFilter" style="display:none;"></div>
     <div class="kpi-row">
       <div class="kpi"><div class="label">Celkovy obrat</div><div class="value" id="kpi-total">-</div><div class="detail" id="kpi-total-detail"></div></div>
       <div class="kpi"><div class="label">Pocet transakci</div><div class="value" id="kpi-tx">-</div><div class="detail" id="kpi-tx-detail"></div></div>
@@ -498,12 +517,78 @@ function updateLandingStatus() {
     renderDashboard(pd.rows);
   };
 
+  // ===== MONTH / YEAR FILTER (dashboard) =====
+  var DASH_MONTH_ABBR = ['Led','Úno','Bře','Dub','Kvě','Čvn','Čvc','Srp','Zář','Říj','Lis','Pro'];
+  // d.date = 'DD.MM.YYYY H:MM:SS' -> 'YYYY-MM'
+  function rowMonth(d) { var p = d.date.split(' ')[0].split('.'); return p.length === 3 ? p[2] + '-' + p[1].padStart(2, '0') : null; }
+
+  function buildDashMonthFilter(rows) {
+    var el = document.getElementById('dashMonthFilter');
+    var monthsSet = new Set();
+    rows.forEach(function(d) { var ym = rowMonth(d); if (ym) monthsSet.add(ym); });
+    var months = Array.from(monthsSet).sort();
+    if (months.length === 0) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    var byYear = {};
+    months.forEach(function(ym) { var p = ym.split('-'); (byYear[p[0]] = byYear[p[0]] || []).push(p[1]); });
+    var html = '<div class="mf-head"><span class="mf-title">Filtr období</span>'
+      + '<div class="mf-actions"><button class="mf-btn" data-act="all">Vše</button>'
+      + '<button class="mf-btn" data-act="none">Zrušit</button></div></div><div class="mf-years">';
+    Object.keys(byYear).sort().forEach(function(y) {
+      html += '<div class="mf-year"><button class="mf-year-toggle" data-year="' + y + '">' + y + '</button><div class="mf-months">';
+      byYear[y].forEach(function(m) {
+        html += '<button class="mf-chip active" data-ym="' + y + '-' + m + '">' + DASH_MONTH_ABBR[+m - 1] + '</button>';
+      });
+      html += '</div></div>';
+    });
+    html += '</div><div class="mf-warn" style="display:none">Vyberte alespoň jeden měsíc.</div>';
+    el.innerHTML = html;
+    el.style.display = 'block';
+    if (!el.dataset.wired) { el.addEventListener('click', onDashMonthFilterClick); el.dataset.wired = '1'; }
+  }
+
+  function onDashMonthFilterClick(e) {
+    var el = document.getElementById('dashMonthFilter');
+    var chip = e.target.closest('.mf-chip');
+    var yt = e.target.closest('.mf-year-toggle');
+    var act = e.target.closest('.mf-btn');
+    if (chip) { chip.classList.toggle('active'); }
+    else if (yt) {
+      var chips = el.querySelectorAll('.mf-chip[data-ym^="' + yt.dataset.year + '-"]');
+      var allOn = Array.prototype.every.call(chips, function(c) { return c.classList.contains('active'); });
+      chips.forEach(function(c) { c.classList.toggle('active', !allOn); });
+    } else if (act) {
+      el.querySelectorAll('.mf-chip').forEach(function(c) { c.classList.toggle('active', act.dataset.act === 'all'); });
+    } else { return; }
+    renderDashboard(_dashboardData, _activeFilter);
+  }
+
+  // Vrati radky z vybranych mesicu, nebo null, kdyz neni vybrany zadny mesic.
+  function applyDashMonthFilter(rows) {
+    var el = document.getElementById('dashMonthFilter');
+    var chips = el.querySelectorAll('.mf-chip');
+    el.querySelectorAll('.mf-year-toggle').forEach(function(yt) {
+      var yc = el.querySelectorAll('.mf-chip[data-ym^="' + yt.dataset.year + '-"]');
+      var on = Array.prototype.filter.call(yc, function(c) { return c.classList.contains('active'); }).length;
+      yt.classList.toggle('partial', on > 0 && on < yc.length);
+    });
+    var selected = Array.prototype.map.call(el.querySelectorAll('.mf-chip.active'), function(c) { return c.dataset.ym; });
+    var warn = el.querySelector('.mf-warn');
+    if (warn) warn.style.display = (chips.length > 0 && selected.length === 0) ? 'block' : 'none';
+    if (chips.length === 0 || selected.length === chips.length) return rows;
+    if (selected.length === 0) return null;
+    var sel = new Set(selected);
+    return rows.filter(function(d) { return sel.has(rowMonth(d)); });
+  }
+
   function renderDashboard(allData, filter) {
-    if (filter === undefined) { _dashboardData = allData; filter = _activeFilter; }
+    if (filter === undefined) { _dashboardData = allData; filter = _activeFilter; buildDashMonthFilter(allData); }
     _dashDataLoaded = true;
     document.getElementById('dashWelcome').style.display = 'none';
     document.getElementById('dashContent').style.display = 'block';
     document.getElementById('filterBar').style.display = 'flex';
+
+    allData = applyDashMonthFilter(allData);
+    if (!allData) return;
 
     var data = allData;
     if (filter === 'firma') data = allData.filter(function(d) { return getCardType(d.card) === 'firma'; });
@@ -523,7 +608,7 @@ function updateLandingStatus() {
     var parsedDates = data.map(function(d) { var parts = d.date.split(' ')[0].split('.'); return new Date(+parts[2], +parts[1] - 1, +parts[0]); }).filter(function(d) { return !isNaN(d); });
     var minDate = new Date(Math.min.apply(null, parsedDates));
     var maxDate = new Date(Math.max.apply(null, parsedDates));
-    var weeks = Math.max(1, Math.round((maxDate - minDate) / (7 * 86400000)));
+    var weeks = parsedDates.length ? Math.max(1, Math.round((maxDate - minDate) / (7 * 86400000))) : 1;
 
     document.getElementById('kpi-total').textContent = fmtCZK(totalAmount);
     document.getElementById('kpi-total-detail').textContent = 'Prepaid kartove platby';
